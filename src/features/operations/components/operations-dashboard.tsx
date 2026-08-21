@@ -10,53 +10,70 @@ import {
   Plus,
 } from "lucide-react";
 import type { FormEvent } from "react";
-import { useCallback, useMemo, useState } from "react";
-
 import {
-  demoTickets,
-  type TicketPriority,
-  type TicketRecord,
-  type TicketStatus,
-} from "@/features/operations/data/demo-tickets";
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
+
+import type {
+  DashboardMetric,
+  TicketPriority,
+  TicketRecord,
+  TicketStatus,
+} from "@/features/operations/types/operations-dashboard";
 import { NewTicketDialog } from "@/features/tickets/components/new-ticket-dialog";
 import type { NewTicketInput } from "@/features/tickets/schemas/new-ticket";
 
-type QueueView = "mine" | "all" | "unassigned";
-type PriorityFilter = "All" | TicketPriority;
+type QueueView =
+  | "mine"
+  | "all"
+  | "unassigned";
 
-const metrics = [
-  { label: "Open requests", value: "28", note: "+3 since yesterday" },
-  { label: "SLA at risk", value: "4", note: "2 require action" },
-  { label: "First response", value: "18m", note: "Target under 30m" },
-  { label: "Assets online", value: "96.8%", note: "629 of 650" },
-] as const;
+type PriorityFilter =
+  | "All"
+  | TicketPriority;
 
-const priorityClasses: Record<TicketPriority, string> = {
+const priorityClasses: Record<
+  TicketPriority,
+  string
+> = {
   Urgent: "text-danger",
   High: "text-warning",
   Normal: "text-muted",
   Low: "text-muted",
 };
 
-const statusClasses: Record<TicketStatus, string> = {
-  Investigating: "bg-warning",
-  "Waiting approval": "bg-accent",
-  "In progress": "bg-success",
+const statusClasses: Record<
+  TicketStatus,
+  string
+> = {
+  Open: "bg-[#98a2b3]",
   Unassigned: "bg-[#98a2b3]",
+  Investigating: "bg-warning",
+  "In progress": "bg-success",
+  "Waiting requester": "bg-warning",
+  "Waiting approval": "bg-accent",
   Scheduled: "bg-accent",
   Resolved: "bg-success",
 };
 
 const statusOptions: TicketStatus[] = [
+  "Open",
   "Unassigned",
   "Investigating",
   "In progress",
+  "Waiting requester",
   "Waiting approval",
   "Scheduled",
   "Resolved",
 ];
 
-function MetricStrip() {
+function MetricStrip({
+  metrics,
+}: {
+  metrics: DashboardMetric[];
+}) {
   return (
     <section
       aria-label="Operations summary"
@@ -65,10 +82,22 @@ function MetricStrip() {
       {metrics.map((metric, index) => (
         <div
           className={`px-5 py-4 sm:px-6 ${
-            index > 0 ? "border-t border-line sm:border-t-0" : ""
-          } ${index % 2 === 1 ? "sm:border-l" : ""} ${
-            index > 1 ? "sm:border-t xl:border-t-0" : ""
-          } ${index > 0 ? "xl:border-l" : ""}`}
+            index > 0
+              ? "border-t border-line sm:border-t-0"
+              : ""
+          } ${
+            index % 2 === 1
+              ? "sm:border-l"
+              : ""
+          } ${
+            index > 1
+              ? "sm:border-t xl:border-t-0"
+              : ""
+          } ${
+            index > 0
+              ? "xl:border-l"
+              : ""
+          }`}
           key={metric.label}
         >
           <p className="text-[12px] font-medium text-muted">
@@ -79,6 +108,7 @@ function MetricStrip() {
             <p className="text-[22px] font-semibold tracking-[-0.02em] text-ink tabular-nums">
               {metric.value}
             </p>
+
             <p className="truncate text-[11px] text-muted">
               {metric.note}
             </p>
@@ -104,14 +134,30 @@ function TicketQueue({
   priorityFilter: PriorityFilter;
   selectedId: string;
   counts: Record<QueueView, number>;
-  onViewChange: (view: QueueView) => void;
-  onPriorityChange: (priority: PriorityFilter) => void;
+  onViewChange: (
+    view: QueueView,
+  ) => void;
+  onPriorityChange: (
+    priority: PriorityFilter,
+  ) => void;
   onSelect: (id: string) => void;
 }) {
-  const tabs: Array<{ value: QueueView; label: string }> = [
-    { value: "mine", label: "My queue" },
-    { value: "all", label: "All open" },
-    { value: "unassigned", label: "Unassigned" },
+  const tabs: Array<{
+    value: QueueView;
+    label: string;
+  }> = [
+    {
+      value: "mine",
+      label: "My queue",
+    },
+    {
+      value: "all",
+      label: "All open",
+    },
+    {
+      value: "unassigned",
+      label: "Unassigned",
+    },
   ];
 
   return (
@@ -121,8 +167,10 @@ function TicketQueue({
           <h2 className="text-[15px] font-semibold text-ink">
             Operational queue
           </h2>
+
           <p className="mt-0.5 text-[12px] text-muted">
-            Prioritized by SLA and business impact
+            Prioritized by SLA and business
+            impact
           </p>
         </div>
 
@@ -137,15 +185,28 @@ function TicketQueue({
             aria-label="Filter tickets by priority"
             className="h-8 appearance-none rounded-[5px] border border-line bg-surface py-0 pl-8 pr-7 text-[12px] font-medium text-[#4c5563] outline-none hover:bg-canvas focus:border-accent"
             onChange={(event) =>
-              onPriorityChange(event.target.value as PriorityFilter)
+              onPriorityChange(
+                event.target
+                  .value as PriorityFilter,
+              )
             }
             value={priorityFilter}
           >
-            <option value="All">All priorities</option>
-            <option value="Urgent">Urgent</option>
-            <option value="High">High</option>
-            <option value="Normal">Normal</option>
-            <option value="Low">Low</option>
+            <option value="All">
+              All priorities
+            </option>
+            <option value="Urgent">
+              Urgent
+            </option>
+            <option value="High">
+              High
+            </option>
+            <option value="Normal">
+              Normal
+            </option>
+            <option value="Low">
+              Low
+            </option>
           </select>
 
           <ChevronDown
@@ -159,7 +220,10 @@ function TicketQueue({
           className="hidden size-8 place-items-center rounded-[5px] text-muted hover:bg-canvas hover:text-ink sm:grid"
           type="button"
         >
-          <MoreHorizontal aria-hidden="true" className="size-4" />
+          <MoreHorizontal
+            aria-hidden="true"
+            className="size-4"
+          />
         </button>
       </div>
 
@@ -170,14 +234,18 @@ function TicketQueue({
       >
         {tabs.map((tab) => (
           <button
-            aria-selected={activeView === tab.value}
+            aria-selected={
+              activeView === tab.value
+            }
             className={`h-10 whitespace-nowrap border-b-2 text-[12px] ${
               activeView === tab.value
                 ? "border-ink font-medium text-ink"
                 : "border-transparent text-muted hover:text-ink"
             }`}
             key={tab.value}
-            onClick={() => onViewChange(tab.value)}
+            onClick={() =>
+              onViewChange(tab.value)
+            }
             role="tab"
             type="button"
           >
@@ -193,19 +261,32 @@ function TicketQueue({
         <table className="w-full min-w-[760px] border-collapse text-left">
           <thead>
             <tr className="h-9 border-b border-line bg-[#fafbfc] text-[11px] font-medium text-muted">
-              <th className="w-[92px] px-4 font-medium">Ticket</th>
-              <th className="px-3 font-medium">Request</th>
-              <th className="w-[92px] px-3 font-medium">Priority</th>
-              <th className="w-[126px] px-3 font-medium">Status</th>
-              <th className="w-[80px] px-3 font-medium">Owner</th>
-              <th className="w-[82px] px-4 font-medium">SLA</th>
+              <th className="w-[92px] px-4 font-medium">
+                Ticket
+              </th>
+              <th className="px-3 font-medium">
+                Request
+              </th>
+              <th className="w-[92px] px-3 font-medium">
+                Priority
+              </th>
+              <th className="w-[126px] px-3 font-medium">
+                Status
+              </th>
+              <th className="w-[80px] px-3 font-medium">
+                Owner
+              </th>
+              <th className="w-[82px] px-4 font-medium">
+                SLA
+              </th>
             </tr>
           </thead>
 
           <tbody>
             {tickets.length > 0 ? (
               tickets.map((ticket) => {
-                const selected = ticket.id === selectedId;
+                const selected =
+                  ticket.id === selectedId;
 
                 return (
                   <tr
@@ -214,13 +295,15 @@ function TicketQueue({
                         ? "bg-selected"
                         : "hover:bg-[#fafbfc]"
                     }`}
-                    key={ticket.id}
+                    key={ticket.databaseId}
                   >
                     <td className="px-4 text-[12px] font-medium text-[#4c5563] tabular-nums">
                       <button
                         aria-label={`Open ${ticket.id}`}
                         className="text-left hover:text-ink"
-                        onClick={() => onSelect(ticket.id)}
+                        onClick={() =>
+                          onSelect(ticket.id)
+                        }
                         type="button"
                       >
                         {ticket.id}
@@ -231,21 +314,27 @@ function TicketQueue({
                       <button
                         aria-pressed={selected}
                         className="block w-full text-left"
-                        onClick={() => onSelect(ticket.id)}
+                        onClick={() =>
+                          onSelect(ticket.id)
+                        }
                         type="button"
                       >
                         <span className="block truncate text-[13px] font-medium text-ink">
                           {ticket.title}
                         </span>
+
                         <span className="mt-1 block truncate text-[11px] text-muted">
-                          {ticket.requester} · {ticket.department}
+                          {ticket.requester} ·{" "}
+                          {ticket.department}
                         </span>
                       </button>
                     </td>
 
                     <td
                       className={`px-3 text-[12px] font-medium ${
-                        priorityClasses[ticket.priority]
+                        priorityClasses[
+                          ticket.priority
+                        ]
                       }`}
                     >
                       {ticket.priority}
@@ -255,7 +344,9 @@ function TicketQueue({
                       <span className="inline-flex items-center gap-2 text-[12px] text-[#4c5563]">
                         <span
                           className={`size-1.5 rounded-full ${
-                            statusClasses[ticket.status]
+                            statusClasses[
+                              ticket.status
+                            ]
                           }`}
                         />
                         {ticket.status}
@@ -268,10 +359,16 @@ function TicketQueue({
 
                     <td
                       className={`px-4 text-[12px] font-medium tabular-nums ${
-                        ticket.priority === "Urgent"
+                        ticket.priority ===
+                        "Urgent"
                           ? "text-danger"
-                          : ticket.sla.includes("h") &&
-                              Number.parseInt(ticket.sla, 10) < 2
+                          : ticket.sla.includes(
+                                "h",
+                              ) &&
+                              Number.parseInt(
+                                ticket.sla,
+                                10,
+                              ) < 2
                             ? "text-warning"
                             : "text-ink"
                       }`}
@@ -287,7 +384,8 @@ function TicketQueue({
                   className="px-4 py-12 text-center text-[13px] text-muted"
                   colSpan={6}
                 >
-                  No tickets match this queue and priority.
+                  No tickets match this queue
+                  and priority.
                 </td>
               </tr>
             )}
@@ -308,8 +406,12 @@ function ContextRail({
   ticket: TicketRecord;
   replyOpen: boolean;
   onReplyToggle: () => void;
-  onReplySubmit: (event: FormEvent<HTMLFormElement>) => void;
-  onStatusChange: (status: TicketStatus) => void;
+  onReplySubmit: (
+    event: FormEvent<HTMLFormElement>,
+  ) => void;
+  onStatusChange: (
+    status: TicketStatus,
+  ) => void;
 }) {
   return (
     <aside className="rounded-[6px] border border-line bg-surface xl:sticky xl:top-[76px] xl:self-start">
@@ -335,6 +437,7 @@ function ContextRail({
         <h2 className="mt-2 text-[15px] font-semibold leading-5 text-ink">
           {ticket.title}
         </h2>
+
         <p className="mt-2 text-[12px] leading-5 text-muted">
           {ticket.summary}
         </p>
@@ -343,19 +446,30 @@ function ContextRail({
       <div className="border-b border-line p-4">
         <div className="grid grid-cols-2 gap-2">
           <label className="relative">
-            <span className="sr-only">Ticket status</span>
+            <span className="sr-only">
+              Ticket status
+            </span>
+
             <select
               className="h-8 w-full appearance-none rounded-[5px] border border-action bg-action px-3 pr-7 text-[12px] font-medium text-white outline-none focus:border-accent"
               onChange={(event) =>
-                onStatusChange(event.target.value as TicketStatus)
+                onStatusChange(
+                  event.target
+                    .value as TicketStatus,
+                )
               }
               value={ticket.status}
             >
-              {statusOptions.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
+              {statusOptions.map(
+                (status) => (
+                  <option
+                    key={status}
+                    value={status}
+                  >
+                    {status}
+                  </option>
+                ),
+              )}
             </select>
 
             <ChevronDown
@@ -380,8 +494,14 @@ function ContextRail({
         </div>
 
         {replyOpen ? (
-          <form className="mt-3" onSubmit={onReplySubmit}>
-            <label className="sr-only" htmlFor="ticket-reply">
+          <form
+            className="mt-3"
+            onSubmit={onReplySubmit}
+          >
+            <label
+              className="sr-only"
+              htmlFor="ticket-reply"
+            >
               Reply to requester
             </label>
 
@@ -464,35 +584,46 @@ function ContextRail({
 
       <dl className="space-y-3 border-b border-line px-4 py-3 text-[12px]">
         <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
-          <dt className="text-muted">Requester</dt>
+          <dt className="text-muted">
+            Requester
+          </dt>
           <dd className="truncate font-medium text-ink">
             {ticket.requester}
           </dd>
         </div>
 
         <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
-          <dt className="text-muted">Assignee</dt>
+          <dt className="text-muted">
+            Assignee
+          </dt>
           <dd className="truncate font-medium text-ink">
             {ticket.assignee}
           </dd>
         </div>
 
         <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
-          <dt className="text-muted">Asset</dt>
+          <dt className="text-muted">
+            Asset
+          </dt>
           <dd className="truncate font-medium text-ink">
             {ticket.asset}
           </dd>
         </div>
 
         <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
-          <dt className="text-muted">Category</dt>
+          <dt className="text-muted">
+            Category
+          </dt>
           <dd className="truncate font-medium text-ink">
             {ticket.category}
           </dd>
         </div>
       </dl>
 
-      <div aria-live="polite" className="px-4 py-3">
+      <div
+        aria-live="polite"
+        className="px-4 py-3"
+      >
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-[11px] font-medium text-muted">
             Latest activity
@@ -510,50 +641,95 @@ function ContextRail({
   );
 }
 
-export function OperationsDashboard() {
+export function OperationsDashboard({
+  initialTickets,
+  initialMetrics,
+  dateLabel,
+  organizationName,
+}: {
+  initialTickets: TicketRecord[];
+  initialMetrics: DashboardMetric[];
+  dateLabel: string;
+  organizationName: string;
+}) {
   const [tickets, setTickets] =
-    useState<TicketRecord[]>(demoTickets);
-  const [activeView, setActiveView] =
-    useState<QueueView>("mine");
-  const [priorityFilter, setPriorityFilter] =
-    useState<PriorityFilter>("All");
-  const [selectedId, setSelectedId] =
-    useState(demoTickets[0].id);
-  const [replyOpen, setReplyOpen] = useState(false);
-  const [newTicketOpen, setNewTicketOpen] = useState(false);
+    useState<TicketRecord[]>(
+      initialTickets,
+    );
 
-  const closeNewTicketDialog = useCallback(
-    () => setNewTicketOpen(false),
-    [],
-  );
+  const [activeView, setActiveView] =
+    useState<QueueView>("all");
+
+  const [
+    priorityFilter,
+    setPriorityFilter,
+  ] = useState<PriorityFilter>("All");
+
+  const [selectedId, setSelectedId] =
+    useState(
+      initialTickets[0]?.id ?? "",
+    );
+
+  const [replyOpen, setReplyOpen] =
+    useState(false);
+
+  const [
+    newTicketOpen,
+    setNewTicketOpen,
+  ] = useState(false);
+
+  const closeNewTicketDialog =
+    useCallback(
+      () => setNewTicketOpen(false),
+      [],
+    );
 
   const selectedTicket =
-    tickets.find((ticket) => ticket.id === selectedId) ??
-    tickets[0];
+    tickets.find(
+      (ticket) =>
+        ticket.id === selectedId,
+    ) ?? tickets[0];
 
   const visibleTickets = useMemo(
     () =>
       tickets.filter((ticket) => {
         const matchesView =
           activeView === "all" ||
-          (activeView === "mine" && ticket.mine) ||
-          (activeView === "unassigned" &&
-            ticket.status === "Unassigned");
+          (activeView === "mine" &&
+            ticket.mine) ||
+          (activeView ===
+            "unassigned" &&
+            ticket.status ===
+              "Unassigned");
 
         const matchesPriority =
           priorityFilter === "All" ||
-          ticket.priority === priorityFilter;
+          ticket.priority ===
+            priorityFilter;
 
-        return matchesView && matchesPriority;
+        return (
+          matchesView &&
+          matchesPriority
+        );
       }),
-    [activeView, priorityFilter, tickets],
+    [
+      activeView,
+      priorityFilter,
+      tickets,
+    ],
   );
 
-  const counts: Record<QueueView, number> = {
-    mine: tickets.filter((ticket) => ticket.mine).length,
+  const counts: Record<
+    QueueView,
+    number
+  > = {
+    mine: tickets.filter(
+      (ticket) => ticket.mine,
+    ).length,
     all: tickets.length,
     unassigned: tickets.filter(
-      (ticket) => ticket.status === "Unassigned",
+      (ticket) =>
+        ticket.status === "Unassigned",
     ).length,
   };
 
@@ -562,7 +738,9 @@ export function OperationsDashboard() {
     setReplyOpen(false);
   }
 
-  function updateStatus(status: TicketStatus) {
+  function updateStatus(
+    status: TicketStatus,
+  ) {
     setTickets((current) =>
       current.map((ticket) =>
         ticket.id === selectedId
@@ -577,11 +755,14 @@ export function OperationsDashboard() {
     );
   }
 
-  function submitReply(event: FormEvent<HTMLFormElement>) {
+  function submitReply(
+    event: FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
     const form = event.currentTarget;
     const formData = new FormData(form);
+
     const reply = String(
       formData.get("reply") ?? "",
     ).trim();
@@ -604,7 +785,9 @@ export function OperationsDashboard() {
     setReplyOpen(false);
   }
 
-  function createTicket(input: NewTicketInput) {
+  function createTicket(
+    input: NewTicketInput,
+  ) {
     const nextNumber =
       Math.max(
         ...tickets.map(
@@ -617,7 +800,9 @@ export function OperationsDashboard() {
       ) + 1;
 
     const prefix =
-      input.requestType === "Incident" ? "INC" : "REQ";
+      input.requestType === "Incident"
+        ? "INC"
+        : "REQ";
 
     const slaTargets: Record<
       NewTicketInput["priority"],
@@ -630,6 +815,7 @@ export function OperationsDashboard() {
     };
 
     const createdTicket: TicketRecord = {
+      databaseId: `local-${prefix.toLowerCase()}-${nextNumber}`,
       id: `${prefix}-${nextNumber}`,
       title: input.title,
       requester: input.requester,
@@ -641,7 +827,8 @@ export function OperationsDashboard() {
       mine: false,
       sla: slaTargets[input.priority],
       summary: input.description,
-      asset: input.asset || "Not linked",
+      asset:
+        input.asset || "Not linked",
       category: input.category,
       latestActivity:
         "Ticket created by Alfirgiawan Rasikh.",
@@ -652,6 +839,7 @@ export function OperationsDashboard() {
       createdTicket,
       ...current,
     ]);
+
     setSelectedId(createdTicket.id);
     setActiveView("all");
     setPriorityFilter("All");
@@ -665,19 +853,24 @@ export function OperationsDashboard() {
         <div className="mx-auto flex max-w-[1500px] flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-[12px] text-muted">
-              Saturday, 22 August · Jakarta
+              {dateLabel}
             </p>
+
             <h1 className="mt-1 text-[26px] font-semibold tracking-[-0.025em] text-ink">
               Operations
             </h1>
+
             <p className="mt-1 text-[13px] text-muted">
-              Live service health for Nusantara Systems
+              Live service health for{" "}
+              {organizationName}
             </p>
           </div>
 
           <button
             className="inline-flex h-9 items-center justify-center gap-1.5 self-start rounded-[5px] bg-action px-3.5 text-[13px] font-medium text-white hover:bg-[#353b44] sm:self-auto"
-            onClick={() => setNewTicketOpen(true)}
+            onClick={() =>
+              setNewTicketOpen(true)
+            }
             type="button"
           >
             <Plus
@@ -690,34 +883,53 @@ export function OperationsDashboard() {
         </div>
       </div>
 
-      <MetricStrip />
+      <MetricStrip
+        metrics={initialMetrics}
+      />
 
       <div className="mx-auto grid max-w-[1500px] gap-4 p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <TicketQueue
           activeView={activeView}
           counts={counts}
-          onPriorityChange={setPriorityFilter}
+          onPriorityChange={
+            setPriorityFilter
+          }
           onSelect={selectTicket}
           onViewChange={setActiveView}
-          priorityFilter={priorityFilter}
+          priorityFilter={
+            priorityFilter
+          }
           selectedId={selectedId}
           tickets={visibleTickets}
         />
 
-        <ContextRail
-          onReplySubmit={submitReply}
-          onReplyToggle={() =>
-            setReplyOpen((current) => !current)
-          }
-          onStatusChange={updateStatus}
-          replyOpen={replyOpen}
-          ticket={selectedTicket}
-        />
+        {selectedTicket ? (
+          <ContextRail
+            onReplySubmit={submitReply}
+            onReplyToggle={() =>
+              setReplyOpen(
+                (current) => !current,
+              )
+            }
+            onStatusChange={
+              updateStatus
+            }
+            replyOpen={replyOpen}
+            ticket={selectedTicket}
+          />
+        ) : (
+          <aside className="rounded-[6px] border border-line bg-surface p-4 text-[12px] text-muted">
+            No active ticket is
+            available.
+          </aside>
+        )}
       </div>
 
       {newTicketOpen ? (
         <NewTicketDialog
-          onClose={closeNewTicketDialog}
+          onClose={
+            closeNewTicketDialog
+          }
           onCreate={createTicket}
         />
       ) : null}

@@ -102,6 +102,7 @@ model Membership {
   userId         String
   role           MembershipRole   @default(EMPLOYEE)
   status         MembershipStatus @default(ACTIVE)
+  department     String?          @db.VarChar(80)
 
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
