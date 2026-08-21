@@ -9,30 +9,38 @@ import {
   MoreHorizontal,
   Plus,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 import {
   useCallback,
   useMemo,
   useState,
+  useTransition,
 } from "react";
 
-import type {
-  DashboardMetric,
-  TicketPriority,
-  TicketRecord,
-  TicketStatus,
+import {
+  type DashboardMetric,
+  type SelectOption,
+  type TicketPriority,
+  type TicketRecord,
+  type TicketStatus,
 } from "@/features/operations/types/operations-dashboard";
 import { NewTicketDialog } from "@/features/tickets/components/new-ticket-dialog";
 import type { NewTicketInput } from "@/features/tickets/schemas/new-ticket";
+import {
+  addTicketReplyAction,
+  createTicketAction,
+  updateTicketStatusAction,
+} from "@/features/tickets/server/ticket-actions";
+import type { TicketActionResult } from "@/features/tickets/types/ticket-actions";
 
-type QueueView =
-  | "mine"
-  | "all"
-  | "unassigned";
+type QueueView = "mine" | "all" | "unassigned";
+type PriorityFilter = "All" | TicketPriority;
 
-type PriorityFilter =
-  | "All"
-  | TicketPriority;
+type MutationNotice = {
+  tone: "success" | "error";
+  message: string;
+};
 
 const priorityClasses: Record<
   TicketPriority,
@@ -49,11 +57,11 @@ const statusClasses: Record<
   string
 > = {
   Open: "bg-[#98a2b3]",
-  Unassigned: "bg-[#98a2b3]",
   Investigating: "bg-warning",
-  "In progress": "bg-success",
-  "Waiting requester": "bg-warning",
   "Waiting approval": "bg-accent",
+  "Waiting requester": "bg-warning",
+  "In progress": "bg-success",
+  Unassigned: "bg-[#98a2b3]",
   Scheduled: "bg-accent",
   Resolved: "bg-success",
 };
@@ -94,9 +102,7 @@ function MetricStrip({
               ? "sm:border-t xl:border-t-0"
               : ""
           } ${
-            index > 0
-              ? "xl:border-l"
-              : ""
+            index > 0 ? "xl:border-l" : ""
           }`}
           key={metric.label}
         >
@@ -108,7 +114,6 @@ function MetricStrip({
             <p className="text-[22px] font-semibold tracking-[-0.02em] text-ink tabular-nums">
               {metric.value}
             </p>
-
             <p className="truncate text-[11px] text-muted">
               {metric.note}
             </p>
@@ -123,7 +128,7 @@ function TicketQueue({
   tickets,
   activeView,
   priorityFilter,
-  selectedId,
+  selectedDatabaseId,
   counts,
   onViewChange,
   onPriorityChange,
@@ -132,11 +137,9 @@ function TicketQueue({
   tickets: TicketRecord[];
   activeView: QueueView;
   priorityFilter: PriorityFilter;
-  selectedId: string;
+  selectedDatabaseId: string;
   counts: Record<QueueView, number>;
-  onViewChange: (
-    view: QueueView,
-  ) => void;
+  onViewChange: (view: QueueView) => void;
   onPriorityChange: (
     priority: PriorityFilter,
   ) => void;
@@ -167,7 +170,6 @@ function TicketQueue({
           <h2 className="text-[15px] font-semibold text-ink">
             Operational queue
           </h2>
-
           <p className="mt-0.5 text-[12px] text-muted">
             Prioritized by SLA and business
             impact
@@ -198,15 +200,11 @@ function TicketQueue({
             <option value="Urgent">
               Urgent
             </option>
-            <option value="High">
-              High
-            </option>
+            <option value="High">High</option>
             <option value="Normal">
               Normal
             </option>
-            <option value="Low">
-              Low
-            </option>
+            <option value="Low">Low</option>
           </select>
 
           <ChevronDown
@@ -286,7 +284,8 @@ function TicketQueue({
             {tickets.length > 0 ? (
               tickets.map((ticket) => {
                 const selected =
-                  ticket.id === selectedId;
+                  ticket.databaseId ===
+                  selectedDatabaseId;
 
                 return (
                   <tr
@@ -302,7 +301,9 @@ function TicketQueue({
                         aria-label={`Open ${ticket.id}`}
                         className="text-left hover:text-ink"
                         onClick={() =>
-                          onSelect(ticket.id)
+                          onSelect(
+                            ticket.databaseId,
+                          )
                         }
                         type="button"
                       >
@@ -315,14 +316,15 @@ function TicketQueue({
                         aria-pressed={selected}
                         className="block w-full text-left"
                         onClick={() =>
-                          onSelect(ticket.id)
+                          onSelect(
+                            ticket.databaseId,
+                          )
                         }
                         type="button"
                       >
                         <span className="block truncate text-[13px] font-medium text-ink">
                           {ticket.title}
                         </span>
-
                         <span className="mt-1 block truncate text-[11px] text-muted">
                           {ticket.requester} ·{" "}
                           {ticket.department}
@@ -399,16 +401,22 @@ function TicketQueue({
 function ContextRail({
   ticket,
   replyOpen,
+  replySubmitting,
+  statusPending,
+  mutationNotice,
   onReplyToggle,
   onReplySubmit,
   onStatusChange,
 }: {
   ticket: TicketRecord;
   replyOpen: boolean;
+  replySubmitting: boolean;
+  statusPending: boolean;
+  mutationNotice: MutationNotice | null;
   onReplyToggle: () => void;
   onReplySubmit: (
     event: FormEvent<HTMLFormElement>,
-  ) => void;
+  ) => void | Promise<void>;
   onStatusChange: (
     status: TicketStatus,
   ) => void;
@@ -437,7 +445,6 @@ function ContextRail({
         <h2 className="mt-2 text-[15px] font-semibold leading-5 text-ink">
           {ticket.title}
         </h2>
-
         <p className="mt-2 text-[12px] leading-5 text-muted">
           {ticket.summary}
         </p>
@@ -451,7 +458,8 @@ function ContextRail({
             </span>
 
             <select
-              className="h-8 w-full appearance-none rounded-[5px] border border-action bg-action px-3 pr-7 text-[12px] font-medium text-white outline-none focus:border-accent"
+              className="h-8 w-full appearance-none rounded-[5px] border border-action bg-action px-3 pr-7 text-[12px] font-medium text-white outline-none focus:border-accent disabled:cursor-wait disabled:opacity-70"
+              disabled={statusPending}
               onChange={(event) =>
                 onStatusChange(
                   event.target
@@ -460,16 +468,14 @@ function ContextRail({
               }
               value={ticket.status}
             >
-              {statusOptions.map(
-                (status) => (
-                  <option
-                    key={status}
-                    value={status}
-                  >
-                    {status}
-                  </option>
-                ),
-              )}
+              {statusOptions.map((status) => (
+                <option
+                  key={status}
+                  value={status}
+                >
+                  {status}
+                </option>
+              ))}
             </select>
 
             <ChevronDown
@@ -480,7 +486,8 @@ function ContextRail({
 
           <button
             aria-expanded={replyOpen}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[5px] border border-line px-3 text-[12px] font-medium text-[#4c5563] hover:bg-canvas hover:text-ink"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[5px] border border-line px-3 text-[12px] font-medium text-[#4c5563] hover:bg-canvas hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={replySubmitting}
             onClick={onReplyToggle}
             type="button"
           >
@@ -507,7 +514,8 @@ function ContextRail({
 
             <textarea
               autoFocus
-              className="min-h-24 w-full resize-y rounded-[5px] border border-line bg-canvas px-2.5 py-2 text-[12px] leading-5 text-ink outline-none placeholder:text-[#8a93a1] focus:border-accent focus:bg-white"
+              className="min-h-24 w-full resize-y rounded-[5px] border border-line bg-canvas px-2.5 py-2 text-[12px] leading-5 text-ink outline-none placeholder:text-[#8a93a1] focus:border-accent focus:bg-white disabled:cursor-wait disabled:opacity-70"
+              disabled={replySubmitting}
               id="ticket-reply"
               name="reply"
               placeholder="Write a concise update…"
@@ -516,7 +524,8 @@ function ContextRail({
 
             <div className="mt-2 flex justify-end gap-2">
               <button
-                className="h-7 rounded-[5px] px-2.5 text-[11px] font-medium text-muted hover:bg-canvas hover:text-ink"
+                className="h-7 rounded-[5px] px-2.5 text-[11px] font-medium text-muted hover:bg-canvas hover:text-ink disabled:opacity-50"
+                disabled={replySubmitting}
                 onClick={onReplyToggle}
                 type="button"
               >
@@ -524,13 +533,42 @@ function ContextRail({
               </button>
 
               <button
-                className="h-7 rounded-[5px] bg-action px-2.5 text-[11px] font-medium text-white hover:bg-[#353b44]"
+                className="h-7 min-w-[76px] rounded-[5px] bg-action px-2.5 text-[11px] font-medium text-white hover:bg-[#353b44] disabled:cursor-wait disabled:opacity-70"
+                disabled={replySubmitting}
                 type="submit"
               >
-                Send reply
+                {replySubmitting
+                  ? "Sending…"
+                  : "Send reply"}
               </button>
             </div>
           </form>
+        ) : null}
+
+        {statusPending ? (
+          <p
+            className="mt-3 text-[11px] leading-4 text-muted"
+            role="status"
+          >
+            Saving ticket status…
+          </p>
+        ) : null}
+
+        {mutationNotice ? (
+          <p
+            className={`mt-3 border-l-2 px-2.5 py-1.5 text-[11px] leading-4 ${
+              mutationNotice.tone === "error"
+                ? "border-danger bg-[#fff7f6] text-danger"
+                : "border-success bg-[#f3faf6] text-[#277a4b]"
+            }`}
+            role={
+              mutationNotice.tone === "error"
+                ? "alert"
+                : "status"
+            }
+          >
+            {mutationNotice.message}
+          </p>
         ) : null}
       </div>
 
@@ -646,16 +684,17 @@ export function OperationsDashboard({
   initialMetrics,
   dateLabel,
   organizationName,
+  requesterOptions,
+  assetOptions,
 }: {
   initialTickets: TicketRecord[];
   initialMetrics: DashboardMetric[];
   dateLabel: string;
   organizationName: string;
+  requesterOptions: SelectOption[];
+  assetOptions: SelectOption[];
 }) {
-  const [tickets, setTickets] =
-    useState<TicketRecord[]>(
-      initialTickets,
-    );
+  const router = useRouter();
 
   const [activeView, setActiveView] =
     useState<QueueView>("all");
@@ -665,100 +704,143 @@ export function OperationsDashboard({
     setPriorityFilter,
   ] = useState<PriorityFilter>("All");
 
-  const [selectedId, setSelectedId] =
-    useState(
-      initialTickets[0]?.id ?? "",
-    );
+  const [
+    selectedDatabaseId,
+    setSelectedDatabaseId,
+  ] = useState(
+    initialTickets[0]?.databaseId ?? "",
+  );
 
   const [replyOpen, setReplyOpen] =
     useState(false);
+
+  const [
+    replySubmitting,
+    setReplySubmitting,
+  ] = useState(false);
 
   const [
     newTicketOpen,
     setNewTicketOpen,
   ] = useState(false);
 
-  const closeNewTicketDialog =
-    useCallback(
-      () => setNewTicketOpen(false),
-      [],
-    );
+  const [
+    mutationNotice,
+    setMutationNotice,
+  ] = useState<MutationNotice | null>(null);
+
+  const [
+    statusPending,
+    startStatusTransition,
+  ] = useTransition();
+
+  const closeNewTicketDialog = useCallback(
+    () => setNewTicketOpen(false),
+    [],
+  );
 
   const selectedTicket =
-    tickets.find(
+    initialTickets.find(
       (ticket) =>
-        ticket.id === selectedId,
-    ) ?? tickets[0];
+        ticket.databaseId ===
+        selectedDatabaseId,
+    ) ?? initialTickets[0];
 
   const visibleTickets = useMemo(
     () =>
-      tickets.filter((ticket) => {
+      initialTickets.filter((ticket) => {
         const matchesView =
           activeView === "all" ||
           (activeView === "mine" &&
             ticket.mine) ||
-          (activeView ===
-            "unassigned" &&
-            ticket.status ===
-              "Unassigned");
+          (activeView === "unassigned" &&
+            ticket.status === "Unassigned");
 
         const matchesPriority =
           priorityFilter === "All" ||
-          ticket.priority ===
-            priorityFilter;
+          ticket.priority === priorityFilter;
 
         return (
-          matchesView &&
-          matchesPriority
+          matchesView && matchesPriority
         );
       }),
     [
       activeView,
+      initialTickets,
       priorityFilter,
-      tickets,
     ],
   );
 
-  const counts: Record<
-    QueueView,
-    number
-  > = {
-    mine: tickets.filter(
+  const counts: Record<QueueView, number> = {
+    mine: initialTickets.filter(
       (ticket) => ticket.mine,
     ).length,
-    all: tickets.length,
-    unassigned: tickets.filter(
+    all: initialTickets.length,
+    unassigned: initialTickets.filter(
       (ticket) =>
         ticket.status === "Unassigned",
     ).length,
   };
 
-  function selectTicket(id: string) {
-    setSelectedId(id);
+  function selectTicket(
+    databaseId: string,
+  ) {
+    setSelectedDatabaseId(databaseId);
     setReplyOpen(false);
+    setMutationNotice(null);
   }
 
   function updateStatus(
     status: TicketStatus,
   ) {
-    setTickets((current) =>
-      current.map((ticket) =>
-        ticket.id === selectedId
-          ? {
-              ...ticket,
-              status,
-              latestActivity: `Status changed to ${status}.`,
-              updatedAt: "Just now",
-            }
-          : ticket,
-      ),
-    );
+    if (!selectedTicket || statusPending) {
+      return;
+    }
+
+    const ticketId =
+      selectedTicket.databaseId;
+
+    setMutationNotice(null);
+
+    startStatusTransition(async () => {
+      try {
+        const result =
+          await updateTicketStatusAction({
+            ticketId,
+            status,
+          });
+
+        setMutationNotice({
+          tone: result.success
+            ? "success"
+            : "error",
+          message: result.message,
+        });
+
+        if (result.success) {
+          router.refresh();
+        }
+      } catch {
+        setMutationNotice({
+          tone: "error",
+          message:
+            "The status could not be saved. Check the connection and try again.",
+        });
+      }
+    });
   }
 
-  function submitReply(
+  async function submitReply(
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
+
+    if (
+      !selectedTicket ||
+      replySubmitting
+    ) {
+      return;
+    }
 
     const form = event.currentTarget;
     const formData = new FormData(form);
@@ -769,82 +851,79 @@ export function OperationsDashboard({
 
     if (!reply) return;
 
-    setTickets((current) =>
-      current.map((ticket) =>
-        ticket.id === selectedId
-          ? {
-              ...ticket,
-              latestActivity: `You replied: ${reply}`,
-              updatedAt: "Just now",
-            }
-          : ticket,
-      ),
-    );
+    const ticketId =
+      selectedTicket.databaseId;
 
-    form.reset();
-    setReplyOpen(false);
+    setMutationNotice(null);
+    setReplySubmitting(true);
+
+    try {
+      const result =
+        await addTicketReplyAction({
+          ticketId,
+          body: reply,
+        });
+
+      setMutationNotice({
+        tone: result.success
+          ? "success"
+          : "error",
+        message: result.message,
+      });
+
+      if (result.success) {
+        form.reset();
+        setReplyOpen(false);
+        router.refresh();
+      }
+    } catch {
+      setMutationNotice({
+        tone: "error",
+        message:
+          "The reply could not be sent. Check the connection and try again.",
+      });
+    } finally {
+      setReplySubmitting(false);
+    }
   }
 
-  function createTicket(
+  async function createTicket(
     input: NewTicketInput,
-  ) {
-    const nextNumber =
-      Math.max(
-        ...tickets.map(
-          (ticket) =>
-            Number.parseInt(
-              ticket.id.split("-")[1],
-              10,
-            ) || 0,
-        ),
-      ) + 1;
+  ): Promise<TicketActionResult> {
+    setMutationNotice(null);
 
-    const prefix =
-      input.requestType === "Incident"
-        ? "INC"
-        : "REQ";
+    try {
+      const result =
+        await createTicketAction(input);
 
-    const slaTargets: Record<
-      NewTicketInput["priority"],
-      string
-    > = {
-      Urgent: "30m",
-      High: "4h",
-      Normal: "8h",
-      Low: "2d",
-    };
+      if (result.success) {
+        if (result.ticketId) {
+          setSelectedDatabaseId(
+            result.ticketId,
+          );
+        }
 
-    const createdTicket: TicketRecord = {
-      databaseId: `local-${prefix.toLowerCase()}-${nextNumber}`,
-      id: `${prefix}-${nextNumber}`,
-      title: input.title,
-      requester: input.requester,
-      department: input.department,
-      priority: input.priority,
-      status: "Unassigned",
-      assignee: "Unassigned",
-      assigneeShort: "—",
-      mine: false,
-      sla: slaTargets[input.priority],
-      summary: input.description,
-      asset:
-        input.asset || "Not linked",
-      category: input.category,
-      latestActivity:
-        "Ticket created by Alfirgiawan Rasikh.",
-      updatedAt: "Just now",
-    };
+        setActiveView("all");
+        setPriorityFilter("All");
+        setReplyOpen(false);
+        setNewTicketOpen(false);
 
-    setTickets((current) => [
-      createdTicket,
-      ...current,
-    ]);
+        setMutationNotice({
+          tone: "success",
+          message: result.message,
+        });
 
-    setSelectedId(createdTicket.id);
-    setActiveView("all");
-    setPriorityFilter("All");
-    setReplyOpen(false);
-    closeNewTicketDialog();
+        router.refresh();
+      }
+
+      return result;
+    } catch {
+      return {
+        success: false,
+        message:
+          "The ticket could not be created. Check the connection and try again.",
+      };
+    }
   }
 
   return (
@@ -855,11 +934,9 @@ export function OperationsDashboard({
             <p className="text-[12px] text-muted">
               {dateLabel}
             </p>
-
             <h1 className="mt-1 text-[26px] font-semibold tracking-[-0.025em] text-ink">
               Operations
             </h1>
-
             <p className="mt-1 text-[13px] text-muted">
               Live service health for{" "}
               {organizationName}
@@ -896,41 +973,45 @@ export function OperationsDashboard({
           }
           onSelect={selectTicket}
           onViewChange={setActiveView}
-          priorityFilter={
-            priorityFilter
+          priorityFilter={priorityFilter}
+          selectedDatabaseId={
+            selectedDatabaseId
           }
-          selectedId={selectedId}
           tickets={visibleTickets}
         />
 
         {selectedTicket ? (
           <ContextRail
+            mutationNotice={mutationNotice}
             onReplySubmit={submitReply}
             onReplyToggle={() =>
               setReplyOpen(
                 (current) => !current,
               )
             }
-            onStatusChange={
-              updateStatus
-            }
+            onStatusChange={updateStatus}
             replyOpen={replyOpen}
+            replySubmitting={
+              replySubmitting
+            }
+            statusPending={statusPending}
             ticket={selectedTicket}
           />
         ) : (
           <aside className="rounded-[6px] border border-line bg-surface p-4 text-[12px] text-muted">
-            No active ticket is
-            available.
+            No active ticket is available.
           </aside>
         )}
       </div>
 
       {newTicketOpen ? (
         <NewTicketDialog
-          onClose={
-            closeNewTicketDialog
-          }
+          assetOptions={assetOptions}
+          onClose={closeNewTicketDialog}
           onCreate={createTicket}
+          requesterOptions={
+            requesterOptions
+          }
         />
       ) : null}
     </main>

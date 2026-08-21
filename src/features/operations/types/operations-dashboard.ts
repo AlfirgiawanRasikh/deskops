@@ -39,9 +39,16 @@ export type DashboardMetric = {
   note: string;
 };
 
+export type SelectOption = {
+  value: string;
+  label: string;
+};
+
 export type OperationsDashboardData = {
   organizationName: string;
   dateLabel: string;
   tickets: TicketRecord[];
   metrics: DashboardMetric[];
+  requesterOptions: SelectOption[];
+  assetOptions: SelectOption[];
 };
