@@ -5,18 +5,17 @@ import { getOperationsDashboardData } from "@/features/operations/server/get-ope
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const data =
-    await getOperationsDashboardData();
+  const data = await getOperationsDashboardData();
 
   return (
     <AppShell>
       <OperationsDashboard
+        assetOptions={data.assetOptions}
         dateLabel={data.dateLabel}
         initialMetrics={data.metrics}
         initialTickets={data.tickets}
-        organizationName={
-          data.organizationName
-        }
+        organizationName={data.organizationName}
+        requesterOptions={data.requesterOptions}
       />
     </AppShell>
   );

@@ -98,10 +98,7 @@ function formatRelativeTime(date: Date, now: Date) {
   );
 }
 
-function formatSla(
-  dueAt: Date | null,
-  now: Date,
-) {
+function formatSla(dueAt: Date | null, now: Date) {
   if (!dueAt) return "No target";
 
   const remainingMinutes = Math.ceil(
@@ -113,11 +110,11 @@ function formatSla(
     return `${remainingMinutes}m`;
   }
 
-  if (remainingMinutes < 1_440) {
+  if (remainingMinutes < 1440) {
     return `${Math.ceil(remainingMinutes / 60)}h`;
   }
 
-  return `${Math.ceil(remainingMinutes / 1_440)}d`;
+  return `${Math.ceil(remainingMinutes / 1440)}d`;
 }
 
 function formatEvent(event: {
@@ -137,12 +134,15 @@ function formatEvent(event: {
       )} to ${formatEnumValue(event.toValue)}.`;
 
     case "ASSIGNEE_CHANGED":
-      return `${actor} assigned the ticket to ${
-        event.toValue ?? "the queue"
-      }.`;
+      return event.toValue
+        ? `${actor} assigned the ticket to ${event.toValue}.`
+        : `${actor} returned the ticket to the unassigned queue.`;
 
     case "TICKET_CREATED":
       return `${actor} created this ticket.`;
+
+    case "COMMENT_ADDED":
+      return `${actor} replied to the requester.`;
 
     default:
       return `${actor} updated this ticket.`;
@@ -174,6 +174,8 @@ export async function getOperationsDashboardData(): Promise<OperationsDashboardD
     tickets,
     assetCount,
     assignedAssetCount,
+    activeMemberships,
+    selectableAssets,
   ] = await prisma.$transaction([
     prisma.ticket.findMany({
       where: {
@@ -206,7 +208,6 @@ export async function getOperationsDashboardData(): Promise<OperationsDashboardD
         assigneeId: true,
         resolutionDueAt: true,
         createdAt: true,
-
         requester: {
           select: {
             name: true,
@@ -221,21 +222,18 @@ export async function getOperationsDashboardData(): Promise<OperationsDashboardD
             },
           },
         },
-
         assignee: {
           select: {
             name: true,
             email: true,
           },
         },
-
         asset: {
           select: {
             assetTag: true,
             model: true,
           },
         },
-
         comments: {
           orderBy: {
             createdAt: "desc",
@@ -251,7 +249,6 @@ export async function getOperationsDashboardData(): Promise<OperationsDashboardD
             },
           },
         },
-
         events: {
           orderBy: {
             createdAt: "desc",
@@ -284,6 +281,46 @@ export async function getOperationsDashboardData(): Promise<OperationsDashboardD
         status: "ASSIGNED",
       },
     }),
+
+    prisma.membership.findMany({
+      where: {
+        organizationId: organization.id,
+        status: "ACTIVE",
+      },
+      orderBy: {
+        user: {
+          name: "asc",
+        },
+      },
+      select: {
+        department: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    }),
+
+    prisma.asset.findMany({
+      where: {
+        organizationId: organization.id,
+        status: {
+          notIn: ["RETIRED", "LOST"],
+        },
+      },
+      orderBy: {
+        assetTag: "asc",
+      },
+      select: {
+        id: true,
+        assetTag: true,
+        name: true,
+        model: true,
+      },
+    }),
   ]);
 
   const dashboardTickets: TicketRecord[] =
@@ -311,9 +348,7 @@ export async function getOperationsDashboardData(): Promise<OperationsDashboardD
             : "Ticket created.";
 
       const prefix =
-        ticket.type === "INCIDENT"
-          ? "INC"
-          : "REQ";
+        ticket.type === "INCIDENT" ? "INC" : "REQ";
 
       return {
         databaseId: ticket.id,
@@ -331,8 +366,7 @@ export async function getOperationsDashboardData(): Promise<OperationsDashboardD
         assignee:
           ticket.assignee?.name ?? "Unassigned",
         assigneeShort:
-          ticket.assignee?.name.split(" ")[0] ??
-          "—",
+          ticket.assignee?.name.split(" ")[0] ?? "—",
         mine:
           ticket.assignee?.email ===
           CURRENT_USER_EMAIL,
@@ -343,8 +377,7 @@ export async function getOperationsDashboardData(): Promise<OperationsDashboardD
         summary: ticket.description,
         asset: ticket.asset
           ? `${ticket.asset.assetTag} · ${
-              ticket.asset.model ??
-              "Unknown model"
+              ticket.asset.model ?? "Unknown model"
             }`
           : "Not linked",
         category: ticket.category,
@@ -366,8 +399,7 @@ export async function getOperationsDashboardData(): Promise<OperationsDashboardD
   ).length;
 
   const urgentCount = tickets.filter(
-    (ticket) =>
-      ticket.priority === "URGENT",
+    (ticket) => ticket.priority === "URGENT",
   ).length;
 
   const highPriorityCount = tickets.filter(
@@ -390,6 +422,23 @@ export async function getOperationsDashboardData(): Promise<OperationsDashboardD
     organizationName: organization.name,
     dateLabel: `${dateLabel} · Jakarta`,
     tickets: dashboardTickets,
+    requesterOptions: activeMemberships.map(
+      (membership) => ({
+        value: membership.user.id,
+        label: `${membership.user.name} · ${
+          membership.department ??
+          membership.user.email
+        }`,
+      }),
+    ),
+    assetOptions: selectableAssets.map(
+      (asset) => ({
+        value: asset.id,
+        label: `${asset.assetTag} · ${asset.name}${
+          asset.model ? ` · ${asset.model}` : ""
+        }`,
+      }),
+    ),
     metrics: [
       {
         label: "Open requests",
