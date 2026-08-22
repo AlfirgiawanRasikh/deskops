@@ -1,0 +1,271 @@
+.page {
+  display: grid;
+  min-height: 100svh;
+  grid-template-rows: 56px 1fr 48px;
+  color: #171a1f;
+  background: #f6f7f9;
+}
+
+.page * {
+  box-sizing: border-box;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  border-bottom: 1px solid #e3e6ea;
+  background: #ffffff;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brandMark {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 5px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  background: #252a31;
+}
+
+.brandName {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.productContext {
+  margin: 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+}
+
+.panel {
+  width: min(100%, 400px);
+  padding: 32px;
+  border: 1px solid #e3e6ea;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.panelHeader {
+  margin-bottom: 28px;
+}
+
+.organization {
+  margin: 0 0 8px;
+  color: #667085;
+  font-size: 13px;
+}
+
+.panelHeader h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.description {
+  margin: 8px 0 0;
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.form {
+  display: grid;
+  gap: 18px;
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+}
+
+.label {
+  color: #343a44;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.input {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid #cfd4dc;
+  border-radius: 5px;
+  outline: none;
+  color: #171a1f;
+  font: inherit;
+  font-size: 14px;
+  background: #ffffff;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.input::placeholder {
+  color: #98a2b3;
+}
+
+.input:hover:not(:disabled) {
+  border-color: #aeb5c0;
+}
+
+.input:focus {
+  border-color: #4b64d9;
+  box-shadow: 0 0 0 3px rgb(75 100 217 / 12%);
+}
+
+.input:disabled {
+  cursor: not-allowed;
+  color: #98a2b3;
+  background: #f6f7f9;
+}
+
+.passwordField {
+  position: relative;
+}
+
+.passwordField .input {
+  padding-right: 60px;
+}
+
+.passwordToggle {
+  position: absolute;
+  top: 50%;
+  right: 11px;
+  padding: 2px;
+  border: 0;
+  transform: translateY(-50%);
+  color: #4b64d9;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  background: transparent;
+  cursor: pointer;
+}
+
+.passwordToggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.options {
+  display: flex;
+  align-items: center;
+}
+
+.checkboxLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #4b5563;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #4b64d9;
+}
+
+.error {
+  margin: 0;
+  padding: 10px 11px;
+  border: 1px solid #e6b8b8;
+  border-radius: 5px;
+  color: #a93636;
+  font-size: 13px;
+  line-height: 1.45;
+  background: #fff7f7;
+}
+
+.submitButton {
+  display: inline-flex;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #252a31;
+  border-radius: 5px;
+  color: #ffffff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  background: #252a31;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.submitButton:hover:not(:disabled) {
+  background: #171a1f;
+}
+
+.submitButton:focus-visible {
+  outline: 3px solid rgb(75 100 217 / 20%);
+  outline-offset: 2px;
+}
+
+.submitButton:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.helpText {
+  margin: 18px 0 0;
+  color: #667085;
+  font-size: 12px;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid #e3e6ea;
+  color: #667085;
+  font-size: 12px;
+  background: #ffffff;
+}
+
+@media (max-width: 520px) {
+  .page {
+    grid-template-rows: 52px 1fr 44px;
+  }
+
+  .topbar {
+    padding: 0 18px;
+  }
+
+  .productContext {
+    display: none;
+  }
+
+  .content {
+    justify-content: flex-start;
+    padding: 48px 18px;
+  }
+
+  .panel {
+    padding: 24px;
+  }
+}

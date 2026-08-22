@@ -21,11 +21,13 @@ const inputClassName =
 export function NewTicketDialog({
   requesterOptions,
   assetOptions,
+  requesterLocked,
   onClose,
   onCreate,
 }: {
   requesterOptions: SelectOption[];
   assetOptions: SelectOption[];
+  requesterLocked: boolean;
   onClose: () => void;
   onCreate: (
     ticket: NewTicketInput,
@@ -248,7 +250,7 @@ export function NewTicketDialog({
                 <span className="mb-1.5 flex items-center justify-between gap-3 text-[12px] font-medium text-[#4c5563]">
                   <span>Title</span>
                   <span className="font-normal text-muted">
-                    5–120 characters
+                    5-120 characters
                   </span>
                 </span>
 
@@ -296,34 +298,50 @@ export function NewTicketDialog({
                 {fieldError("description")}
               </label>
 
-              <label className="block sm:col-span-2">
+              <div className="block sm:col-span-2">
                 <span className="mb-1.5 block text-[12px] font-medium text-[#4c5563]">
                   Requester
                 </span>
 
-                <select
-                  className={inputClassName}
-                  defaultValue=""
-                  name="requesterId"
-                >
-                  <option disabled value="">
-                    Select organization member
-                  </option>
+                {requesterLocked &&
+                requesterOptions[0] ? (
+                  <>
+                    <input
+                      name="requesterId"
+                      type="hidden"
+                      value={requesterOptions[0].value}
+                    />
+                    <div className="flex h-9 items-center rounded-[5px] border border-line bg-[#f6f7f9] px-2.5 text-[13px] text-[#4c5563]">
+                      <span className="truncate">
+                        {requesterOptions[0].label}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <select
+                    className={inputClassName}
+                    defaultValue=""
+                    name="requesterId"
+                  >
+                    <option disabled value="">
+                      Select organization member
+                    </option>
 
-                  {requesterOptions.map(
-                    (option) => (
-                      <option
-                        key={option.value}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </option>
-                    ),
-                  )}
-                </select>
+                    {requesterOptions.map(
+                      (option) => (
+                        <option
+                          key={option.value}
+                          value={option.value}
+                        >
+                          {option.label}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                )}
 
                 {fieldError("requesterId")}
-              </label>
+              </div>
 
               <label className="block">
                 <span className="mb-1.5 block text-[12px] font-medium text-[#4c5563]">
@@ -415,7 +433,7 @@ export function NewTicketDialog({
               type="submit"
             >
               {submitting
-                ? "Creating…"
+                ? "Creating..."
                 : "Create ticket"}
             </button>
           </div>

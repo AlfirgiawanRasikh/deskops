@@ -14,35 +14,128 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
+import type { WorkspaceRole } from "@/features/auth/server/authorization";
+import { SignOutButton } from "@/features/auth/components/sign-out-button";
+
 type NavigationItem = {
   label: string;
   icon: LucideIcon;
   active?: boolean;
-  count?: number;
 };
 
-const navigationGroups: Array<{
+type NavigationGroup = {
   label: string;
   items: NavigationItem[];
-}> = [
-  {
-    label: "Workspace",
-    items: [
-      { label: "Overview", icon: LayoutDashboard, active: true },
-      { label: "My queue", icon: Inbox, count: 12 },
-      { label: "All tickets", icon: Ticket },
-      { label: "Assets", icon: Laptop },
-    ],
-  },
-  {
-    label: "Manage",
-    items: [
-      { label: "People", icon: Users },
-      { label: "Reports", icon: BarChart3 },
-      { label: "Settings", icon: Settings },
-    ],
-  },
-];
+};
+
+type AppShellUser = {
+  name: string;
+  email: string;
+  role: WorkspaceRole;
+};
+
+type AppShellProps = {
+  children: ReactNode;
+  currentUser: AppShellUser;
+  organizationName: string;
+};
+
+function getNavigationGroups(
+  role: WorkspaceRole,
+): NavigationGroup[] {
+  const workspaceItems: NavigationItem[] = [
+    {
+      label: "Overview",
+      icon: LayoutDashboard,
+      active: true,
+    },
+    {
+      label:
+        role === "EMPLOYEE"
+          ? "My requests"
+          : "My queue",
+      icon: Inbox,
+    },
+    ...(role === "EMPLOYEE"
+      ? []
+      : [
+          {
+            label: "All tickets",
+            icon: Ticket,
+          },
+        ]),
+    {
+      label: "Assets",
+      icon: Laptop,
+    },
+  ];
+
+  const manageItems: NavigationItem[] = [];
+
+  if (
+    role === "OWNER" ||
+    role === "ADMIN" ||
+    role === "MANAGER"
+  ) {
+    manageItems.push(
+      {
+        label: "People",
+        icon: Users,
+      },
+      {
+        label: "Reports",
+        icon: BarChart3,
+      },
+    );
+  }
+
+  if (
+    role === "OWNER" ||
+    role === "ADMIN"
+  ) {
+    manageItems.push({
+      label: "Settings",
+      icon: Settings,
+    });
+  }
+
+  return [
+    {
+      label: "Workspace",
+      items: workspaceItems,
+    },
+    ...(manageItems.length > 0
+      ? [
+          {
+            label: "Manage",
+            items: manageItems,
+          },
+        ]
+      : []),
+  ];
+}
+
+function getInitials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0))
+    .join("")
+    .toUpperCase();
+}
+
+function getRoleLabel(role: WorkspaceRole) {
+  return role
+    .toLowerCase()
+    .split("_")
+    .map(
+      (part) =>
+        part.charAt(0).toUpperCase() +
+        part.slice(1),
+    )
+    .join(" ");
+}
 
 function Brand() {
   return (
@@ -50,10 +143,12 @@ function Brand() {
       <div className="grid size-7 place-items-center rounded-[5px] bg-action text-[12px] font-semibold text-white">
         D
       </div>
+
       <div className="min-w-0">
         <p className="truncate text-[14px] font-semibold leading-none text-ink">
           DeskOps
         </p>
+
         <p className="mt-1 truncate text-[11px] leading-none text-muted">
           Service workspace
         </p>
@@ -62,7 +157,93 @@ function Brand() {
   );
 }
 
-function Sidebar() {
+function AccountMenu({
+  user,
+  compact = false,
+}: {
+  user: AppShellUser;
+  compact?: boolean;
+}) {
+  const initials = getInitials(user.name);
+  const roleLabel = getRoleLabel(user.role);
+
+  return (
+    <details className="group relative">
+      <summary
+        aria-label={
+          compact
+            ? "Open account menu"
+            : undefined
+        }
+        className={
+          compact
+            ? "grid size-8 cursor-pointer list-none place-items-center rounded-[5px] hover:bg-canvas [&::-webkit-details-marker]:hidden"
+            : "flex w-full cursor-pointer list-none items-center gap-2 rounded-[5px] px-2 py-2 text-left hover:bg-white/70 [&::-webkit-details-marker]:hidden"
+        }
+      >
+        <div className="grid size-7 shrink-0 place-items-center rounded-full bg-[#dce2ea] text-[11px] font-semibold text-[#364152]">
+          {initials}
+        </div>
+
+        {!compact ? (
+          <>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[12px] font-medium text-ink">
+                {user.name}
+              </span>
+
+              <span className="block truncate text-[11px] text-muted">
+                {roleLabel}
+              </span>
+            </span>
+
+            <ChevronDown
+              aria-hidden="true"
+              className="size-3.5 text-muted transition-transform group-open:rotate-180"
+            />
+          </>
+        ) : null}
+      </summary>
+
+      <div
+        className={`absolute z-30 rounded-[6px] border border-line bg-surface p-2 shadow-[0_6px_18px_rgba(23,26,31,0.08)] ${
+          compact
+            ? "right-0 top-[calc(100%+8px)] w-64"
+            : "bottom-[calc(100%+8px)] left-0 right-0"
+        }`}
+      >
+        <div className="border-b border-line px-2 pb-2">
+          <p className="truncate text-[12px] font-medium text-ink">
+            {user.name}
+          </p>
+
+          <p className="mt-0.5 truncate text-[11px] text-muted">
+            {user.email}
+          </p>
+
+          <p className="mt-0.5 text-[11px] text-muted">
+            {roleLabel}
+          </p>
+        </div>
+
+        <div className="pt-2">
+          <SignOutButton />
+        </div>
+      </div>
+    </details>
+  );
+}
+
+function Sidebar({
+  user,
+  organizationName,
+}: {
+  user: AppShellUser;
+  organizationName: string;
+}) {
+  const navigationGroups =
+    getNavigationGroups(user.role);
+
   return (
     <aside className="sticky top-0 hidden h-screen flex-col border-r border-line bg-sidebar lg:flex">
       <div className="px-4 pb-3 pt-4">
@@ -76,22 +257,34 @@ function Sidebar() {
         >
           <span className="min-w-0">
             <span className="block truncate text-[12px] font-medium text-ink">
-              Nusantara Systems
+              {organizationName}
             </span>
+
             <span className="mt-0.5 block truncate text-[11px] text-muted">
               Production workspace
             </span>
           </span>
-          <ChevronDown aria-hidden="true" className="size-3.5 text-muted" />
+
+          <ChevronDown
+            aria-hidden="true"
+            className="size-3.5 text-muted"
+          />
         </button>
       </div>
 
-      <nav aria-label="Primary navigation" className="flex-1 overflow-y-auto px-2">
+      <nav
+        aria-label="Primary navigation"
+        className="flex-1 overflow-y-auto px-2"
+      >
         {navigationGroups.map((group) => (
-          <div className="mb-5" key={group.label}>
+          <div
+            className="mb-5"
+            key={group.label}
+          >
             <p className="mb-1.5 px-2 text-[11px] font-medium text-muted">
               {group.label}
             </p>
+
             <ul className="space-y-0.5">
               {group.items.map((item) => {
                 const Icon = item.icon;
@@ -99,7 +292,11 @@ function Sidebar() {
                 return (
                   <li key={item.label}>
                     <a
-                      aria-current={item.active ? "page" : undefined}
+                      aria-current={
+                        item.active
+                          ? "page"
+                          : undefined
+                      }
                       className={`flex h-8 items-center gap-2 rounded-[5px] px-2 text-[13px] transition-colors ${
                         item.active
                           ? "bg-selected font-medium text-ink"
@@ -107,13 +304,15 @@ function Sidebar() {
                       }`}
                       href="#"
                     >
-                      <Icon aria-hidden="true" className="size-4 shrink-0" strokeWidth={1.8} />
-                      <span className="flex-1 truncate">{item.label}</span>
-                      {item.count ? (
-                        <span className="text-[11px] tabular-nums text-muted">
-                          {item.count}
-                        </span>
-                      ) : null}
+                      <Icon
+                        aria-hidden="true"
+                        className="size-4 shrink-0"
+                        strokeWidth={1.8}
+                      />
+
+                      <span className="flex-1 truncate">
+                        {item.label}
+                      </span>
                     </a>
                   </li>
                 );
@@ -124,27 +323,17 @@ function Sidebar() {
       </nav>
 
       <div className="border-t border-line p-2">
-        <button
-          className="flex w-full items-center gap-2 rounded-[5px] px-2 py-2 text-left hover:bg-white/70"
-          type="button"
-        >
-          <div className="grid size-7 place-items-center rounded-full bg-[#dce2ea] text-[11px] font-semibold text-[#364152]">
-            AR
-          </div>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[12px] font-medium text-ink">
-              Alfirgiawan Rasikh
-            </span>
-            <span className="block truncate text-[11px] text-muted">Administrator</span>
-          </span>
-          <ChevronDown aria-hidden="true" className="size-3.5 text-muted" />
-        </button>
+        <AccountMenu user={user} />
       </div>
     </aside>
   );
 }
 
-function Topbar() {
+function Topbar({
+  user,
+}: {
+  user: AppShellUser;
+}) {
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center border-b border-line bg-surface/95 px-4 backdrop-blur-sm sm:px-6">
       <div className="mr-4 lg:hidden">
@@ -152,17 +341,22 @@ function Topbar() {
       </div>
 
       <label className="relative hidden w-full max-w-[420px] sm:block">
-        <span className="sr-only">Search DeskOps</span>
+        <span className="sr-only">
+          Search DeskOps
+        </span>
+
         <Search
           aria-hidden="true"
           className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted"
           strokeWidth={1.8}
         />
+
         <input
           className="h-8 w-full rounded-[5px] border border-line bg-canvas pl-8 pr-14 text-[13px] text-ink outline-none placeholder:text-[#8a93a1] focus:border-accent focus:bg-white"
           placeholder="Search tickets, people, or assets"
           type="search"
         />
+
         <kbd className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted">
           Ctrl K
         </kbd>
@@ -174,27 +368,49 @@ function Topbar() {
           className="grid size-8 place-items-center rounded-[5px] text-muted hover:bg-canvas hover:text-ink"
           type="button"
         >
-          <CircleHelp aria-hidden="true" className="size-4" strokeWidth={1.8} />
+          <CircleHelp
+            aria-hidden="true"
+            className="size-4"
+            strokeWidth={1.8}
+          />
         </button>
+
         <button
           aria-label="Notifications"
           className="relative grid size-8 place-items-center rounded-[5px] text-muted hover:bg-canvas hover:text-ink"
           type="button"
         >
-          <Bell aria-hidden="true" className="size-4" strokeWidth={1.8} />
+          <Bell
+            aria-hidden="true"
+            className="size-4"
+            strokeWidth={1.8}
+          />
+
           <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-danger" />
         </button>
+
+        <div className="ml-1 lg:hidden">
+          <AccountMenu compact user={user} />
+        </div>
       </div>
     </header>
   );
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  currentUser,
+  organizationName,
+}: AppShellProps) {
   return (
     <div className="min-h-screen bg-canvas text-ink lg:grid lg:grid-cols-[232px_minmax(0,1fr)]">
-      <Sidebar />
+      <Sidebar
+        user={currentUser}
+        organizationName={organizationName}
+      />
+
       <div className="min-w-0">
-        <Topbar />
+        <Topbar user={currentUser} />
         {children}
       </div>
     </div>

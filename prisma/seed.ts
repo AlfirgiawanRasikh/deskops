@@ -1,10 +1,40 @@
 import "dotenv/config";
 
 import { PrismaPg } from "@prisma/adapter-pg";
+import { hashPassword } from "better-auth/crypto";
 
 import { PrismaClient } from "../src/generated/prisma/client";
 
-const connectionString = process.env.DATABASE_URL;
+
+function requireEnvironmentVariable(
+  name:
+    | "DATABASE_URL"
+    | "DESKOPS_DEMO_PASSWORD",
+) {
+  const value = process.env[name]?.trim();
+
+  if (!value) {
+    throw new Error(
+      `${name} environment variable is not configured.`,
+    );
+  }
+
+  return value;
+}
+
+const connectionString =
+  requireEnvironmentVariable("DATABASE_URL");
+
+const demoPassword =
+  requireEnvironmentVariable(
+    "DESKOPS_DEMO_PASSWORD",
+  );
+
+if (demoPassword.length < 12) {
+  throw new Error(
+    "DESKOPS_DEMO_PASSWORD must contain at least 12 characters.",
+  );
+}
 
 if (!connectionString) {
   throw new Error("DATABASE_URL environment variable is not configured.");
@@ -111,14 +141,61 @@ async function main() {
       },
       update: {
         name: person.name,
+        emailVerified: true,
       },
       create: {
         name: person.name,
         email: person.email,
+        emailVerified: true,
       },
     });
 
     userIds.set(person.key, user.id);
+
+    const credentialIssuer =
+      "local:credential";
+
+    const existingCredentialAccount =
+      await prisma.account.findFirst({
+        where: {
+          issuer: credentialIssuer,
+          accountId: user.id,
+        },
+        select: {
+          id: true,
+          password: true,
+        },
+      });
+
+    if (!existingCredentialAccount?.password) {
+      const passwordHash = await hashPassword(
+        demoPassword,
+      );
+
+      if (existingCredentialAccount) {
+        await prisma.account.update({
+          where: {
+            id: existingCredentialAccount.id,
+          },
+          data: {
+            providerId: "credential",
+            userId: user.id,
+            password: passwordHash,
+          },
+        });
+      } else {
+        await prisma.account.create({
+          data: {
+            id: `seed-credential-${person.key}`,
+            issuer: credentialIssuer,
+            accountId: user.id,
+            providerId: "credential",
+            userId: user.id,
+            password: passwordHash,
+          },
+        });
+      }
+    }
 
     await prisma.membership.upsert({
       where: {
@@ -619,6 +696,14 @@ async function main() {
     }),
   ]);
 
+  const credentialAccountCount =
+  await prisma.account.count({
+    where: {
+      issuer: "local:credential",
+      providerId: "credential",
+    },
+  });
+
   console.log("DeskOps demo data is ready.");
   console.log(`Organization: ${organization.name}`);
   console.log(`Members: ${membershipCount}`);
@@ -626,6 +711,9 @@ async function main() {
   console.log(`Tickets: ${ticketCount}`);
   console.log(`Comments: ${commentCount}`);
   console.log(`Audit events: ${eventCount}`);
+  console.log(
+    `Credential accounts: ${credentialAccountCount}`,
+  );
 }
 
 main()

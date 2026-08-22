@@ -1,0 +1,1545 @@
+﻿===== OPERATIONS TYPES =====
+export type TicketPriority =
+  | "Urgent"
+  | "High"
+  | "Normal"
+  | "Low";
+
+export type TicketStatus =
+  | "Open"
+  | "Unassigned"
+  | "Investigating"
+  | "In progress"
+  | "Waiting requester"
+  | "Waiting approval"
+  | "Scheduled"
+  | "Resolved";
+
+export type TicketRecord = {
+  databaseId: string;
+  id: string;
+  title: string;
+  requester: string;
+  department: string;
+  priority: TicketPriority;
+  status: TicketStatus;
+  assignee: string;
+  assigneeShort: string;
+  mine: boolean;
+  sla: string;
+  summary: string;
+  asset: string;
+  category: string;
+  latestActivity: string;
+  updatedAt: string;
+};
+
+export type DashboardMetric = {
+  label: string;
+  value: string;
+  note: string;
+};
+
+export type SelectOption = {
+  value: string;
+  label: string;
+};
+
+export type OperationsDashboardData = {
+  organizationName: string;
+  dateLabel: string;
+  tickets: TicketRecord[];
+  metrics: DashboardMetric[];
+  requesterOptions: SelectOption[];
+  assetOptions: SelectOption[];
+};
+===== OPERATIONS DASHBOARD =====
+"use client";
+
+import {
+  ArrowUpRight,
+  ChevronDown,
+  Clock3,
+  Filter,
+  MessageSquare,
+  MoreHorizontal,
+  Plus,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import type { FormEvent } from "react";
+import {
+  useCallback,
+  useMemo,
+  useState,
+  useTransition,
+} from "react";
+
+import {
+  type DashboardMetric,
+  type SelectOption,
+  type TicketPriority,
+  type TicketRecord,
+  type TicketStatus,
+} from "@/features/operations/types/operations-dashboard";
+import { NewTicketDialog } from "@/features/tickets/components/new-ticket-dialog";
+import type { NewTicketInput } from "@/features/tickets/schemas/new-ticket";
+import {
+  addTicketReplyAction,
+  createTicketAction,
+  updateTicketStatusAction,
+} from "@/features/tickets/server/ticket-actions";
+import type { TicketActionResult } from "@/features/tickets/types/ticket-actions";
+
+type QueueView = "mine" | "all" | "unassigned";
+type PriorityFilter = "All" | TicketPriority;
+
+type MutationNotice = {
+  tone: "success" | "error";
+  message: string;
+};
+
+const priorityClasses: Record<
+  TicketPriority,
+  string
+> = {
+  Urgent: "text-danger",
+  High: "text-warning",
+  Normal: "text-muted",
+  Low: "text-muted",
+};
+
+const statusClasses: Record<
+  TicketStatus,
+  string
+> = {
+  Open: "bg-[#98a2b3]",
+  Investigating: "bg-warning",
+  "Waiting approval": "bg-accent",
+  "Waiting requester": "bg-warning",
+  "In progress": "bg-success",
+  Unassigned: "bg-[#98a2b3]",
+  Scheduled: "bg-accent",
+  Resolved: "bg-success",
+};
+
+const statusOptions: TicketStatus[] = [
+  "Open",
+  "Unassigned",
+  "Investigating",
+  "In progress",
+  "Waiting requester",
+  "Waiting approval",
+  "Scheduled",
+  "Resolved",
+];
+
+function MetricStrip({
+  metrics,
+}: {
+  metrics: DashboardMetric[];
+}) {
+  return (
+    <section
+      aria-label="Operations summary"
+      className="grid border-y border-line bg-surface sm:grid-cols-2 xl:grid-cols-4"
+    >
+      {metrics.map((metric, index) => (
+        <div
+          className={`px-5 py-4 sm:px-6 ${
+            index > 0
+              ? "border-t border-line sm:border-t-0"
+              : ""
+          } ${
+            index % 2 === 1
+              ? "sm:border-l"
+              : ""
+          } ${
+            index > 1
+              ? "sm:border-t xl:border-t-0"
+              : ""
+          } ${
+            index > 0 ? "xl:border-l" : ""
+          }`}
+          key={metric.label}
+        >
+          <p className="text-[12px] font-medium text-muted">
+            {metric.label}
+          </p>
+
+          <div className="mt-1.5 flex items-baseline justify-between gap-3">
+            <p className="text-[22px] font-semibold tracking-[-0.02em] text-ink tabular-nums">
+              {metric.value}
+            </p>
+            <p className="truncate text-[11px] text-muted">
+              {metric.note}
+            </p>
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function TicketQueue({
+  tickets,
+  activeView,
+  priorityFilter,
+  selectedDatabaseId,
+  counts,
+  onViewChange,
+  onPriorityChange,
+  onSelect,
+}: {
+  tickets: TicketRecord[];
+  activeView: QueueView;
+  priorityFilter: PriorityFilter;
+  selectedDatabaseId: string;
+  counts: Record<QueueView, number>;
+  onViewChange: (view: QueueView) => void;
+  onPriorityChange: (
+    priority: PriorityFilter,
+  ) => void;
+  onSelect: (id: string) => void;
+}) {
+  const tabs: Array<{
+    value: QueueView;
+    label: string;
+  }> = [
+    {
+      value: "mine",
+      label: "My queue",
+    },
+    {
+      value: "all",
+      label: "All open",
+    },
+    {
+      value: "unassigned",
+      label: "Unassigned",
+    },
+  ];
+
+  return (
+    <section className="min-w-0 overflow-hidden rounded-[6px] border border-line bg-surface">
+      <div className="flex flex-col gap-3 border-b border-line px-4 py-3 sm:flex-row sm:items-center">
+        <div>
+          <h2 className="text-[15px] font-semibold text-ink">
+            Operational queue
+          </h2>
+          <p className="mt-0.5 text-[12px] text-muted">
+            Prioritized by SLA and business
+            impact
+          </p>
+        </div>
+
+        <div className="relative sm:ml-auto">
+          <Filter
+            aria-hidden="true"
+            className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted"
+            strokeWidth={1.8}
+          />
+
+          <select
+            aria-label="Filter tickets by priority"
+            className="h-8 appearance-none rounded-[5px] border border-line bg-surface py-0 pl-8 pr-7 text-[12px] font-medium text-[#4c5563] outline-none hover:bg-canvas focus:border-accent"
+            onChange={(event) =>
+              onPriorityChange(
+                event.target
+                  .value as PriorityFilter,
+              )
+            }
+            value={priorityFilter}
+          >
+            <option value="All">
+              All priorities
+            </option>
+            <option value="Urgent">
+              Urgent
+            </option>
+            <option value="High">High</option>
+            <option value="Normal">
+              Normal
+            </option>
+            <option value="Low">Low</option>
+          </select>
+
+          <ChevronDown
+            aria-hidden="true"
+            className="pointer-events-none absolute right-2 top-1/2 size-3 -translate-y-1/2 text-muted"
+          />
+        </div>
+
+        <button
+          aria-label="Queue options"
+          className="hidden size-8 place-items-center rounded-[5px] text-muted hover:bg-canvas hover:text-ink sm:grid"
+          type="button"
+        >
+          <MoreHorizontal
+            aria-hidden="true"
+            className="size-4"
+          />
+        </button>
+      </div>
+
+      <div
+        aria-label="Ticket queues"
+        className="flex items-center gap-5 overflow-x-auto border-b border-line px-4"
+        role="tablist"
+      >
+        {tabs.map((tab) => (
+          <button
+            aria-selected={
+              activeView === tab.value
+            }
+            className={`h-10 whitespace-nowrap border-b-2 text-[12px] ${
+              activeView === tab.value
+                ? "border-ink font-medium text-ink"
+                : "border-transparent text-muted hover:text-ink"
+            }`}
+            key={tab.value}
+            onClick={() =>
+              onViewChange(tab.value)
+            }
+            role="tab"
+            type="button"
+          >
+            {tab.label}{" "}
+            <span className="ml-1 text-muted tabular-nums">
+              {counts[tab.value]}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[760px] border-collapse text-left">
+          <thead>
+            <tr className="h-9 border-b border-line bg-[#fafbfc] text-[11px] font-medium text-muted">
+              <th className="w-[92px] px-4 font-medium">
+                Ticket
+              </th>
+              <th className="px-3 font-medium">
+                Request
+              </th>
+              <th className="w-[92px] px-3 font-medium">
+                Priority
+              </th>
+              <th className="w-[126px] px-3 font-medium">
+                Status
+              </th>
+              <th className="w-[80px] px-3 font-medium">
+                Owner
+              </th>
+              <th className="w-[82px] px-4 font-medium">
+                SLA
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {tickets.length > 0 ? (
+              tickets.map((ticket) => {
+                const selected =
+                  ticket.databaseId ===
+                  selectedDatabaseId;
+
+                return (
+                  <tr
+                    className={`h-[62px] border-b border-line last:border-b-0 ${
+                      selected
+                        ? "bg-selected"
+                        : "hover:bg-[#fafbfc]"
+                    }`}
+                    key={ticket.databaseId}
+                  >
+                    <td className="px-4 text-[12px] font-medium text-[#4c5563] tabular-nums">
+                      <button
+                        aria-label={`Open ${ticket.id}`}
+                        className="text-left hover:text-ink"
+                        onClick={() =>
+                          onSelect(
+                            ticket.databaseId,
+                          )
+                        }
+                        type="button"
+                      >
+                        {ticket.id}
+                      </button>
+                    </td>
+
+                    <td className="max-w-0 px-3">
+                      <button
+                        aria-pressed={selected}
+                        className="block w-full text-left"
+                        onClick={() =>
+                          onSelect(
+                            ticket.databaseId,
+                          )
+                        }
+                        type="button"
+                      >
+                        <span className="block truncate text-[13px] font-medium text-ink">
+                          {ticket.title}
+                        </span>
+                        <span className="mt-1 block truncate text-[11px] text-muted">
+                          {ticket.requester} Â·{" "}
+                          {ticket.department}
+                        </span>
+                      </button>
+                    </td>
+
+                    <td
+                      className={`px-3 text-[12px] font-medium ${
+                        priorityClasses[
+                          ticket.priority
+                        ]
+                      }`}
+                    >
+                      {ticket.priority}
+                    </td>
+
+                    <td className="px-3">
+                      <span className="inline-flex items-center gap-2 text-[12px] text-[#4c5563]">
+                        <span
+                          className={`size-1.5 rounded-full ${
+                            statusClasses[
+                              ticket.status
+                            ]
+                          }`}
+                        />
+                        {ticket.status}
+                      </span>
+                    </td>
+
+                    <td className="px-3 text-[12px] text-[#4c5563]">
+                      {ticket.assigneeShort}
+                    </td>
+
+                    <td
+                      className={`px-4 text-[12px] font-medium tabular-nums ${
+                        ticket.priority ===
+                        "Urgent"
+                          ? "text-danger"
+                          : ticket.sla.includes(
+                                "h",
+                              ) &&
+                              Number.parseInt(
+                                ticket.sla,
+                                10,
+                              ) < 2
+                            ? "text-warning"
+                            : "text-ink"
+                      }`}
+                    >
+                      {ticket.sla}
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td
+                  className="px-4 py-12 text-center text-[13px] text-muted"
+                  colSpan={6}
+                >
+                  No tickets match this queue
+                  and priority.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function ContextRail({
+  ticket,
+  replyOpen,
+  replySubmitting,
+  statusPending,
+  mutationNotice,
+  onReplyToggle,
+  onReplySubmit,
+  onStatusChange,
+}: {
+  ticket: TicketRecord;
+  replyOpen: boolean;
+  replySubmitting: boolean;
+  statusPending: boolean;
+  mutationNotice: MutationNotice | null;
+  onReplyToggle: () => void;
+  onReplySubmit: (
+    event: FormEvent<HTMLFormElement>,
+  ) => void | Promise<void>;
+  onStatusChange: (
+    status: TicketStatus,
+  ) => void;
+}) {
+  return (
+    <aside className="rounded-[6px] border border-line bg-surface xl:sticky xl:top-[76px] xl:self-start">
+      <div className="border-b border-line px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[11px] font-medium text-muted tabular-nums">
+            {ticket.id}
+          </span>
+
+          <button
+            aria-label="Open full ticket"
+            className="grid size-7 place-items-center rounded-[5px] text-muted hover:bg-canvas hover:text-ink"
+            type="button"
+          >
+            <ArrowUpRight
+              aria-hidden="true"
+              className="size-4"
+              strokeWidth={1.8}
+            />
+          </button>
+        </div>
+
+        <h2 className="mt-2 text-[15px] font-semibold leading-5 text-ink">
+          {ticket.title}
+        </h2>
+        <p className="mt-2 text-[12px] leading-5 text-muted">
+          {ticket.summary}
+        </p>
+      </div>
+
+      <div className="border-b border-line p-4">
+        <div className="grid grid-cols-2 gap-2">
+          <label className="relative">
+            <span className="sr-only">
+              Ticket status
+            </span>
+
+            <select
+              className="h-8 w-full appearance-none rounded-[5px] border border-action bg-action px-3 pr-7 text-[12px] font-medium text-white outline-none focus:border-accent disabled:cursor-wait disabled:opacity-70"
+              disabled={statusPending}
+              onChange={(event) =>
+                onStatusChange(
+                  event.target
+                    .value as TicketStatus,
+                )
+              }
+              value={ticket.status}
+            >
+              {statusOptions.map((status) => (
+                <option
+                  key={status}
+                  value={status}
+                >
+                  {status}
+                </option>
+              ))}
+            </select>
+
+            <ChevronDown
+              aria-hidden="true"
+              className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-white"
+            />
+          </label>
+
+          <button
+            aria-expanded={replyOpen}
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[5px] border border-line px-3 text-[12px] font-medium text-[#4c5563] hover:bg-canvas hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={replySubmitting}
+            onClick={onReplyToggle}
+            type="button"
+          >
+            <MessageSquare
+              aria-hidden="true"
+              className="size-3.5"
+              strokeWidth={1.8}
+            />
+            Reply
+          </button>
+        </div>
+
+        {replyOpen ? (
+          <form
+            className="mt-3"
+            onSubmit={onReplySubmit}
+          >
+            <label
+              className="sr-only"
+              htmlFor="ticket-reply"
+            >
+              Reply to requester
+            </label>
+
+            <textarea
+              autoFocus
+              className="min-h-24 w-full resize-y rounded-[5px] border border-line bg-canvas px-2.5 py-2 text-[12px] leading-5 text-ink outline-none placeholder:text-[#8a93a1] focus:border-accent focus:bg-white disabled:cursor-wait disabled:opacity-70"
+              disabled={replySubmitting}
+              id="ticket-reply"
+              name="reply"
+              placeholder="Write a concise updateâ€¦"
+              required
+            />
+
+            <div className="mt-2 flex justify-end gap-2">
+              <button
+                className="h-7 rounded-[5px] px-2.5 text-[11px] font-medium text-muted hover:bg-canvas hover:text-ink disabled:opacity-50"
+                disabled={replySubmitting}
+                onClick={onReplyToggle}
+                type="button"
+              >
+                Cancel
+              </button>
+
+              <button
+                className="h-7 min-w-[76px] rounded-[5px] bg-action px-2.5 text-[11px] font-medium text-white hover:bg-[#353b44] disabled:cursor-wait disabled:opacity-70"
+                disabled={replySubmitting}
+                type="submit"
+              >
+                {replySubmitting
+                  ? "Sendingâ€¦"
+                  : "Send reply"}
+              </button>
+            </div>
+          </form>
+        ) : null}
+
+        {statusPending ? (
+          <p
+            className="mt-3 text-[11px] leading-4 text-muted"
+            role="status"
+          >
+            Saving ticket statusâ€¦
+          </p>
+        ) : null}
+
+        {mutationNotice ? (
+          <p
+            className={`mt-3 border-l-2 px-2.5 py-1.5 text-[11px] leading-4 ${
+              mutationNotice.tone === "error"
+                ? "border-danger bg-[#fff7f6] text-danger"
+                : "border-success bg-[#f3faf6] text-[#277a4b]"
+            }`}
+            role={
+              mutationNotice.tone === "error"
+                ? "alert"
+                : "status"
+            }
+          >
+            {mutationNotice.message}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="border-b border-line px-4 py-3">
+        <h3 className="text-[11px] font-medium text-muted">
+          Service level
+        </h3>
+
+        <div className="mt-2.5 flex items-center gap-2">
+          <Clock3
+            aria-hidden="true"
+            className={`size-4 ${
+              ticket.priority === "Urgent"
+                ? "text-danger"
+                : "text-warning"
+            }`}
+            strokeWidth={1.8}
+          />
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[12px] font-medium text-ink">
+                {ticket.priority === "Urgent"
+                  ? "Resolution at risk"
+                  : "Resolution target"}
+              </span>
+
+              <span
+                className={`text-[12px] font-semibold tabular-nums ${
+                  ticket.priority === "Urgent"
+                    ? "text-danger"
+                    : "text-ink"
+                }`}
+              >
+                {ticket.sla}
+              </span>
+            </div>
+
+            <div className="mt-2 h-1 overflow-hidden rounded-full bg-[#eceef1]">
+              <div
+                className={`h-full ${
+                  ticket.priority === "Urgent"
+                    ? "w-[88%] bg-danger"
+                    : "w-[46%] bg-accent"
+                }`}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <dl className="space-y-3 border-b border-line px-4 py-3 text-[12px]">
+        <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
+          <dt className="text-muted">
+            Requester
+          </dt>
+          <dd className="truncate font-medium text-ink">
+            {ticket.requester}
+          </dd>
+        </div>
+
+        <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
+          <dt className="text-muted">
+            Assignee
+          </dt>
+          <dd className="truncate font-medium text-ink">
+            {ticket.assignee}
+          </dd>
+        </div>
+
+        <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
+          <dt className="text-muted">
+            Asset
+          </dt>
+          <dd className="truncate font-medium text-ink">
+            {ticket.asset}
+          </dd>
+        </div>
+
+        <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
+          <dt className="text-muted">
+            Category
+          </dt>
+          <dd className="truncate font-medium text-ink">
+            {ticket.category}
+          </dd>
+        </div>
+      </dl>
+
+      <div
+        aria-live="polite"
+        className="px-4 py-3"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-[11px] font-medium text-muted">
+            Latest activity
+          </h3>
+          <span className="text-[10px] text-muted">
+            {ticket.updatedAt}
+          </span>
+        </div>
+
+        <p className="mt-2 text-[12px] leading-5 text-[#4c5563]">
+          {ticket.latestActivity}
+        </p>
+      </div>
+    </aside>
+  );
+}
+
+export function OperationsDashboard({
+  initialTickets,
+  initialMetrics,
+  dateLabel,
+  organizationName,
+  requesterOptions,
+  assetOptions,
+}: {
+  initialTickets: TicketRecord[];
+  initialMetrics: DashboardMetric[];
+  dateLabel: string;
+  organizationName: string;
+  requesterOptions: SelectOption[];
+  assetOptions: SelectOption[];
+}) {
+  const router = useRouter();
+
+  const [activeView, setActiveView] =
+    useState<QueueView>("all");
+
+  const [
+    priorityFilter,
+    setPriorityFilter,
+  ] = useState<PriorityFilter>("All");
+
+  const [
+    selectedDatabaseId,
+    setSelectedDatabaseId,
+  ] = useState(
+    initialTickets[0]?.databaseId ?? "",
+  );
+
+  const [replyOpen, setReplyOpen] =
+    useState(false);
+
+  const [
+    replySubmitting,
+    setReplySubmitting,
+  ] = useState(false);
+
+  const [
+    newTicketOpen,
+    setNewTicketOpen,
+  ] = useState(false);
+
+  const [
+    mutationNotice,
+    setMutationNotice,
+  ] = useState<MutationNotice | null>(null);
+
+  const [
+    statusPending,
+    startStatusTransition,
+  ] = useTransition();
+
+  const closeNewTicketDialog = useCallback(
+    () => setNewTicketOpen(false),
+    [],
+  );
+
+  const selectedTicket =
+    initialTickets.find(
+      (ticket) =>
+        ticket.databaseId ===
+        selectedDatabaseId,
+    ) ?? initialTickets[0];
+
+  const visibleTickets = useMemo(
+    () =>
+      initialTickets.filter((ticket) => {
+        const matchesView =
+          activeView === "all" ||
+          (activeView === "mine" &&
+            ticket.mine) ||
+          (activeView === "unassigned" &&
+            ticket.status === "Unassigned");
+
+        const matchesPriority =
+          priorityFilter === "All" ||
+          ticket.priority === priorityFilter;
+
+        return (
+          matchesView && matchesPriority
+        );
+      }),
+    [
+      activeView,
+      initialTickets,
+      priorityFilter,
+    ],
+  );
+
+  const counts: Record<QueueView, number> = {
+    mine: initialTickets.filter(
+      (ticket) => ticket.mine,
+    ).length,
+    all: initialTickets.length,
+    unassigned: initialTickets.filter(
+      (ticket) =>
+        ticket.status === "Unassigned",
+    ).length,
+  };
+
+  function selectTicket(
+    databaseId: string,
+  ) {
+    setSelectedDatabaseId(databaseId);
+    setReplyOpen(false);
+    setMutationNotice(null);
+  }
+
+  function updateStatus(
+    status: TicketStatus,
+  ) {
+    if (!selectedTicket || statusPending) {
+      return;
+    }
+
+    const ticketId =
+      selectedTicket.databaseId;
+
+    setMutationNotice(null);
+
+    startStatusTransition(async () => {
+      try {
+        const result =
+          await updateTicketStatusAction({
+            ticketId,
+            status,
+          });
+
+        setMutationNotice({
+          tone: result.success
+            ? "success"
+            : "error",
+          message: result.message,
+        });
+
+        if (result.success) {
+          router.refresh();
+        }
+      } catch {
+        setMutationNotice({
+          tone: "error",
+          message:
+            "The status could not be saved. Check the connection and try again.",
+        });
+      }
+    });
+  }
+
+  async function submitReply(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    if (
+      !selectedTicket ||
+      replySubmitting
+    ) {
+      return;
+    }
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    const reply = String(
+      formData.get("reply") ?? "",
+    ).trim();
+
+    if (!reply) return;
+
+    const ticketId =
+      selectedTicket.databaseId;
+
+    setMutationNotice(null);
+    setReplySubmitting(true);
+
+    try {
+      const result =
+        await addTicketReplyAction({
+          ticketId,
+          body: reply,
+        });
+
+      setMutationNotice({
+        tone: result.success
+          ? "success"
+          : "error",
+        message: result.message,
+      });
+
+      if (result.success) {
+        form.reset();
+        setReplyOpen(false);
+        router.refresh();
+      }
+    } catch {
+      setMutationNotice({
+        tone: "error",
+        message:
+          "The reply could not be sent. Check the connection and try again.",
+      });
+    } finally {
+      setReplySubmitting(false);
+    }
+  }
+
+  async function createTicket(
+    input: NewTicketInput,
+  ): Promise<TicketActionResult> {
+    setMutationNotice(null);
+
+    try {
+      const result =
+        await createTicketAction(input);
+
+      if (result.success) {
+        if (result.ticketId) {
+          setSelectedDatabaseId(
+            result.ticketId,
+          );
+        }
+
+        setActiveView("all");
+        setPriorityFilter("All");
+        setReplyOpen(false);
+        setNewTicketOpen(false);
+
+        setMutationNotice({
+          tone: "success",
+          message: result.message,
+        });
+
+        router.refresh();
+      }
+
+      return result;
+    } catch {
+      return {
+        success: false,
+        message:
+          "The ticket could not be created. Check the connection and try again.",
+      };
+    }
+  }
+
+  return (
+    <main>
+      <div className="bg-surface px-4 py-5 sm:px-6">
+        <div className="mx-auto flex max-w-[1500px] flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-[12px] text-muted">
+              {dateLabel}
+            </p>
+            <h1 className="mt-1 text-[26px] font-semibold tracking-[-0.025em] text-ink">
+              Operations
+            </h1>
+            <p className="mt-1 text-[13px] text-muted">
+              Live service health for{" "}
+              {organizationName}
+            </p>
+          </div>
+
+          <button
+            className="inline-flex h-9 items-center justify-center gap-1.5 self-start rounded-[5px] bg-action px-3.5 text-[13px] font-medium text-white hover:bg-[#353b44] sm:self-auto"
+            onClick={() =>
+              setNewTicketOpen(true)
+            }
+            type="button"
+          >
+            <Plus
+              aria-hidden="true"
+              className="size-4"
+              strokeWidth={1.8}
+            />
+            New ticket
+          </button>
+        </div>
+      </div>
+
+      <MetricStrip
+        metrics={initialMetrics}
+      />
+
+      <div className="mx-auto grid max-w-[1500px] gap-4 p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <TicketQueue
+          activeView={activeView}
+          counts={counts}
+          onPriorityChange={
+            setPriorityFilter
+          }
+          onSelect={selectTicket}
+          onViewChange={setActiveView}
+          priorityFilter={priorityFilter}
+          selectedDatabaseId={
+            selectedDatabaseId
+          }
+          tickets={visibleTickets}
+        />
+
+        {selectedTicket ? (
+          <ContextRail
+            mutationNotice={mutationNotice}
+            onReplySubmit={submitReply}
+            onReplyToggle={() =>
+              setReplyOpen(
+                (current) => !current,
+              )
+            }
+            onStatusChange={updateStatus}
+            replyOpen={replyOpen}
+            replySubmitting={
+              replySubmitting
+            }
+            statusPending={statusPending}
+            ticket={selectedTicket}
+          />
+        ) : (
+          <aside className="rounded-[6px] border border-line bg-surface p-4 text-[12px] text-muted">
+            No active ticket is available.
+          </aside>
+        )}
+      </div>
+
+      {newTicketOpen ? (
+        <NewTicketDialog
+          assetOptions={assetOptions}
+          onClose={closeNewTicketDialog}
+          onCreate={createTicket}
+          requesterOptions={
+            requesterOptions
+          }
+        />
+      ) : null}
+    </main>
+  );
+}
+===== NEW TICKET DIALOG =====
+"use client";
+
+import { X } from "lucide-react";
+import type { FormEvent } from "react";
+import { useEffect, useState } from "react";
+
+import type { SelectOption } from "@/features/operations/types/operations-dashboard";
+import {
+  newTicketSchema,
+  type NewTicketInput,
+} from "@/features/tickets/schemas/new-ticket";
+import type { TicketActionResult } from "@/features/tickets/types/ticket-actions";
+
+type FieldErrors = Partial<
+  Record<keyof NewTicketInput, string>
+>;
+
+const inputClassName =
+  "h-9 w-full rounded-[5px] border border-line bg-surface px-2.5 text-[13px] text-ink outline-none placeholder:text-[#98a2b3] focus:border-accent disabled:cursor-not-allowed disabled:bg-[#f6f7f9] disabled:text-muted";
+
+export function NewTicketDialog({
+  requesterOptions,
+  assetOptions,
+  onClose,
+  onCreate,
+}: {
+  requesterOptions: SelectOption[];
+  assetOptions: SelectOption[];
+  onClose: () => void;
+  onCreate: (
+    ticket: NewTicketInput,
+  ) => Promise<TicketActionResult>;
+}) {
+  const [errors, setErrors] =
+    useState<FieldErrors>({});
+  const [submitError, setSubmitError] =
+    useState("");
+  const [submitting, setSubmitting] =
+    useState(false);
+
+  useEffect(() => {
+    const previousOverflow =
+      document.body.style.overflow;
+
+    document.body.style.overflow = "hidden";
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (
+        event.key === "Escape" &&
+        !submitting
+      ) {
+        onClose();
+      }
+    }
+
+    window.addEventListener(
+      "keydown",
+      handleKeyDown,
+    );
+
+    return () => {
+      document.body.style.overflow =
+        previousOverflow;
+
+      window.removeEventListener(
+        "keydown",
+        handleKeyDown,
+      );
+    };
+  }, [onClose, submitting]);
+
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    if (submitting) return;
+
+    const formData = new FormData(
+      event.currentTarget,
+    );
+
+    const result = newTicketSchema.safeParse({
+      requestType: formData.get("requestType"),
+      title: formData.get("title"),
+      description: formData.get("description"),
+      requesterId: formData.get("requesterId"),
+      priority: formData.get("priority"),
+      category: formData.get("category"),
+      assetId: formData.get("assetId"),
+    });
+
+    if (!result.success) {
+      const nextErrors: FieldErrors = {};
+
+      for (const issue of result.error.issues) {
+        const field = issue.path[0] as
+          | keyof NewTicketInput
+          | undefined;
+
+        if (field && !nextErrors[field]) {
+          nextErrors[field] = issue.message;
+        }
+      }
+
+      setErrors(nextErrors);
+      setSubmitError("");
+      return;
+    }
+
+    setErrors({});
+    setSubmitError("");
+    setSubmitting(true);
+
+    try {
+      const actionResult = await onCreate(
+        result.data,
+      );
+
+      if (!actionResult.success) {
+        setSubmitError(actionResult.message);
+      }
+    } catch {
+      setSubmitError(
+        "The ticket could not be created. Check the connection and try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function fieldError(
+    field: keyof NewTicketInput,
+  ) {
+    if (!errors[field]) return null;
+
+    return (
+      <p
+        className="mt-1 text-[11px] leading-4 text-danger"
+        id={`${field}-error`}
+      >
+        {errors[field]}
+      </p>
+    );
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-[#171a1f]/35 p-4"
+      onMouseDown={(event) => {
+        if (
+          event.target === event.currentTarget &&
+          !submitting
+        ) {
+          onClose();
+        }
+      }}
+    >
+      <section
+        aria-busy={submitting}
+        aria-labelledby="new-ticket-title"
+        aria-modal="true"
+        className="my-auto w-full max-w-[680px] overflow-hidden rounded-[6px] border border-line bg-surface shadow-[0_20px_60px_rgba(23,26,31,0.16)]"
+        role="dialog"
+      >
+        <div className="flex items-start justify-between gap-6 border-b border-line px-5 py-4">
+          <div>
+            <h2
+              className="text-[16px] font-semibold text-ink"
+              id="new-ticket-title"
+            >
+              Create ticket
+            </h2>
+
+            <p className="mt-1 text-[12px] text-muted">
+              Record the issue clearly so it can
+              be routed without delay.
+            </p>
+          </div>
+
+          <button
+            aria-label="Close create ticket dialog"
+            className="grid size-8 shrink-0 place-items-center rounded-[5px] text-muted hover:bg-canvas hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={submitting}
+            onClick={onClose}
+            type="button"
+          >
+            <X
+              aria-hidden="true"
+              className="size-4"
+              strokeWidth={1.8}
+            />
+          </button>
+        </div>
+
+        <form noValidate onSubmit={handleSubmit}>
+          <fieldset disabled={submitting}>
+            <div className="grid gap-5 px-5 py-5 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1.5 block text-[12px] font-medium text-[#4c5563]">
+                  Request type
+                </span>
+
+                <select
+                  className={inputClassName}
+                  defaultValue="Incident"
+                  name="requestType"
+                >
+                  <option value="Incident">
+                    Incident
+                  </option>
+                  <option value="Service request">
+                    Service request
+                  </option>
+                </select>
+
+                {fieldError("requestType")}
+              </label>
+
+              <label className="block">
+                <span className="mb-1.5 block text-[12px] font-medium text-[#4c5563]">
+                  Priority
+                </span>
+
+                <select
+                  className={inputClassName}
+                  defaultValue="Normal"
+                  name="priority"
+                >
+                  <option value="Urgent">
+                    Urgent
+                  </option>
+                  <option value="High">
+                    High
+                  </option>
+                  <option value="Normal">
+                    Normal
+                  </option>
+                  <option value="Low">
+                    Low
+                  </option>
+                </select>
+
+                {fieldError("priority")}
+              </label>
+
+              <label className="block sm:col-span-2">
+                <span className="mb-1.5 flex items-center justify-between gap-3 text-[12px] font-medium text-[#4c5563]">
+                  <span>Title</span>
+                  <span className="font-normal text-muted">
+                    5â€“120 characters
+                  </span>
+                </span>
+
+                <input
+                  aria-describedby={
+                    errors.title
+                      ? "title-error"
+                      : undefined
+                  }
+                  aria-invalid={Boolean(
+                    errors.title,
+                  )}
+                  autoFocus
+                  className={inputClassName}
+                  name="title"
+                  placeholder="Short summary of the issue"
+                  type="text"
+                />
+
+                {fieldError("title")}
+              </label>
+
+              <label className="block sm:col-span-2">
+                <span className="mb-1.5 flex items-center justify-between gap-3 text-[12px] font-medium text-[#4c5563]">
+                  <span>Description</span>
+                  <span className="font-normal text-muted">
+                    Minimum 15 characters
+                  </span>
+                </span>
+
+                <textarea
+                  aria-describedby={
+                    errors.description
+                      ? "description-error"
+                      : undefined
+                  }
+                  aria-invalid={Boolean(
+                    errors.description,
+                  )}
+                  className="min-h-28 w-full resize-y rounded-[5px] border border-line bg-surface px-2.5 py-2 text-[13px] leading-5 text-ink outline-none placeholder:text-[#98a2b3] focus:border-accent disabled:cursor-not-allowed disabled:bg-[#f6f7f9]"
+                  name="description"
+                  placeholder="What happened, who is affected, and what has already been tried?"
+                />
+
+                {fieldError("description")}
+              </label>
+
+              <label className="block sm:col-span-2">
+                <span className="mb-1.5 block text-[12px] font-medium text-[#4c5563]">
+                  Requester
+                </span>
+
+                <select
+                  className={inputClassName}
+                  defaultValue=""
+                  name="requesterId"
+                >
+                  <option disabled value="">
+                    Select organization member
+                  </option>
+
+                  {requesterOptions.map(
+                    (option) => (
+                      <option
+                        key={option.value}
+                        value={option.value}
+                      >
+                        {option.label}
+                      </option>
+                    ),
+                  )}
+                </select>
+
+                {fieldError("requesterId")}
+              </label>
+
+              <label className="block">
+                <span className="mb-1.5 block text-[12px] font-medium text-[#4c5563]">
+                  Category
+                </span>
+
+                <select
+                  className={inputClassName}
+                  defaultValue=""
+                  name="category"
+                >
+                  <option disabled value="">
+                    Select category
+                  </option>
+                  <option value="Network / VPN">
+                    Network / VPN
+                  </option>
+                  <option value="Access / Account">
+                    Access / Account
+                  </option>
+                  <option value="Hardware / Device">
+                    Hardware / Device
+                  </option>
+                  <option value="Software / License">
+                    Software / License
+                  </option>
+                  <option value="Security / Incident">
+                    Security / Incident
+                  </option>
+                </select>
+
+                {fieldError("category")}
+              </label>
+
+              <label className="block">
+                <span className="mb-1.5 flex items-center justify-between gap-3 text-[12px] font-medium text-[#4c5563]">
+                  <span>Asset</span>
+                  <span className="font-normal text-muted">
+                    Optional
+                  </span>
+                </span>
+
+                <select
+                  className={inputClassName}
+                  defaultValue=""
+                  name="assetId"
+                >
+                  <option value="">
+                    No linked asset
+                  </option>
+
+                  {assetOptions.map((option) => (
+                    <option
+                      key={option.value}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+
+                {fieldError("assetId")}
+              </label>
+            </div>
+          </fieldset>
+
+          {submitError ? (
+            <div
+              className="mx-5 mb-4 border-l-2 border-danger bg-[#fff7f6] px-3 py-2.5 text-[12px] leading-5 text-danger"
+              role="alert"
+            >
+              {submitError}
+            </div>
+          ) : null}
+
+          <div className="flex items-center justify-end gap-2 border-t border-line bg-[#fafbfc] px-5 py-3">
+            <button
+              className="h-8 rounded-[5px] px-3 text-[12px] font-medium text-[#4c5563] hover:bg-white hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={submitting}
+              onClick={onClose}
+              type="button"
+            >
+              Cancel
+            </button>
+
+            <button
+              className="h-8 min-w-[104px] rounded-[5px] bg-action px-3.5 text-[12px] font-medium text-white hover:bg-[#353b44] disabled:cursor-wait disabled:opacity-70"
+              disabled={submitting}
+              type="submit"
+            >
+              {submitting
+                ? "Creatingâ€¦"
+                : "Create ticket"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+===== PACKAGE JSON =====
+{
+  "name": "deskops",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@better-auth/prisma-adapter": "1.7.1",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "better-auth": "1.7.1",
+    "dotenv": "^17.4.2",
+    "lucide-react": "^1.33.0",
+    "next": "16.3.2",
+    "pg": "^8.23.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.2",
+    "prisma": "^7.9.1",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.12",
+    "typescript": "^5"
+  },
+  "type": "module",
+  "overrides": {
+    "deepmerge-ts": "8.0.0"
+  }
+}
