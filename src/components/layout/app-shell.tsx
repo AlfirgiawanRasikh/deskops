@@ -12,15 +12,26 @@ import {
   Ticket,
   Users,
 } from "lucide-react";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
-import type { WorkspaceRole } from "@/features/auth/server/authorization";
 import { SignOutButton } from "@/features/auth/components/sign-out-button";
+import type { WorkspaceRole } from "@/features/auth/server/authorization";
+
+type NavigationKey =
+  | "overview"
+  | "queue"
+  | "tickets"
+  | "assets"
+  | "people"
+  | "reports"
+  | "settings";
 
 type NavigationItem = {
+  key: NavigationKey;
   label: string;
   icon: LucideIcon;
-  active?: boolean;
+  href?: string;
 };
 
 type NavigationGroup = {
@@ -35,6 +46,7 @@ type AppShellUser = {
 };
 
 type AppShellProps = {
+  activeNavigation?: NavigationKey;
   children: ReactNode;
   currentUser: AppShellUser;
   organizationName: string;
@@ -45,30 +57,37 @@ function getNavigationGroups(
 ): NavigationGroup[] {
   const workspaceItems: NavigationItem[] = [
     {
+      key: "overview",
       label: "Overview",
       icon: LayoutDashboard,
-      active: true,
+      href: "/",
     },
     {
+      key: "queue",
       label:
         role === "EMPLOYEE"
           ? "My requests"
           : "My queue",
       icon: Inbox,
-    },
-    ...(role === "EMPLOYEE"
-      ? []
-      : [
-          {
-            label: "All tickets",
-            icon: Ticket,
-          },
-        ]),
-    {
-      label: "Assets",
-      icon: Laptop,
+      href: "/",
     },
   ];
+
+  if (role !== "EMPLOYEE") {
+    workspaceItems.push({
+      key: "tickets",
+      label: "All tickets",
+      icon: Ticket,
+      href: "/",
+    });
+  }
+
+  workspaceItems.push({
+    key: "assets",
+    label: "Assets",
+    icon: Laptop,
+    href: "/assets",
+  });
 
   const manageItems: NavigationItem[] = [];
 
@@ -79,10 +98,12 @@ function getNavigationGroups(
   ) {
     manageItems.push(
       {
+        key: "people",
         label: "People",
         icon: Users,
       },
       {
+        key: "reports",
         label: "Reports",
         icon: BarChart3,
       },
@@ -94,6 +115,7 @@ function getNavigationGroups(
     role === "ADMIN"
   ) {
     manageItems.push({
+      key: "settings",
       label: "Settings",
       icon: Settings,
     });
@@ -235,14 +257,17 @@ function AccountMenu({
 }
 
 function Sidebar({
+  activeNavigation,
   user,
   organizationName,
 }: {
+  activeNavigation: NavigationKey;
   user: AppShellUser;
   organizationName: string;
 }) {
-  const navigationGroups =
-    getNavigationGroups(user.role);
+  const groups = getNavigationGroups(
+    user.role,
+  );
 
   return (
     <aside className="sticky top-0 hidden h-screen flex-col border-r border-line bg-sidebar lg:flex">
@@ -276,7 +301,7 @@ function Sidebar({
         aria-label="Primary navigation"
         className="flex-1 overflow-y-auto px-2"
       >
-        {navigationGroups.map((group) => (
+        {groups.map((group) => (
           <div
             className="mb-5"
             key={group.label}
@@ -288,32 +313,55 @@ function Sidebar({
             <ul className="space-y-0.5">
               {group.items.map((item) => {
                 const Icon = item.icon;
+                const isActive =
+                  item.key ===
+                  activeNavigation;
+
+                const className = `flex h-8 items-center gap-2 rounded-[5px] px-2 text-[13px] transition-colors ${
+                  isActive
+                    ? "bg-selected font-medium text-ink"
+                    : item.href
+                      ? "text-[#4c5563] hover:bg-white/70 hover:text-ink"
+                      : "cursor-not-allowed text-[#98a2b3]"
+                }`;
+
+                const content = (
+                  <>
+                    <Icon
+                      aria-hidden="true"
+                      className="size-4 shrink-0"
+                      strokeWidth={1.8}
+                    />
+
+                    <span className="flex-1 truncate">
+                      {item.label}
+                    </span>
+                  </>
+                );
 
                 return (
-                  <li key={item.label}>
-                    <a
-                      aria-current={
-                        item.active
-                          ? "page"
-                          : undefined
-                      }
-                      className={`flex h-8 items-center gap-2 rounded-[5px] px-2 text-[13px] transition-colors ${
-                        item.active
-                          ? "bg-selected font-medium text-ink"
-                          : "text-[#4c5563] hover:bg-white/70 hover:text-ink"
-                      }`}
-                      href="#"
-                    >
-                      <Icon
-                        aria-hidden="true"
-                        className="size-4 shrink-0"
-                        strokeWidth={1.8}
-                      />
-
-                      <span className="flex-1 truncate">
-                        {item.label}
+                  <li key={item.key}>
+                    {item.href ? (
+                      <Link
+                        aria-current={
+                          isActive
+                            ? "page"
+                            : undefined
+                        }
+                        className={className}
+                        href={item.href}
+                      >
+                        {content}
+                      </Link>
+                    ) : (
+                      <span
+                        aria-disabled="true"
+                        className={className}
+                        title="Coming later"
+                      >
+                        {content}
                       </span>
-                    </a>
+                    )}
                   </li>
                 );
               })}
@@ -398,6 +446,7 @@ function Topbar({
 }
 
 export function AppShell({
+  activeNavigation = "overview",
   children,
   currentUser,
   organizationName,
@@ -405,8 +454,9 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-canvas text-ink lg:grid lg:grid-cols-[232px_minmax(0,1fr)]">
       <Sidebar
-        user={currentUser}
+        activeNavigation={activeNavigation}
         organizationName={organizationName}
+        user={currentUser}
       />
 
       <div className="min-w-0">
