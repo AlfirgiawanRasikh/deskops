@@ -101,6 +101,7 @@ function getNavigationGroups(
         key: "people",
         label: "People",
         icon: Users,
+        href: "/people",
       },
       {
         key: "reports",
