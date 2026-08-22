@@ -5,6 +5,19 @@ export type PeopleMembershipStatus =
   | "Active"
   | "Suspended";
 
+export type PeopleMembershipStatusValue =
+  | "INVITED"
+  | "ACTIVE"
+  | "SUSPENDED";
+
+export type PeopleMembershipEvent = {
+  id: string;
+  action: string;
+  summary: string;
+  actorName: string;
+  occurredAt: string;
+};
+
 export type PeopleRecord = {
   membershipId: string;
   userId: string;
@@ -13,12 +26,18 @@ export type PeopleRecord = {
   avatarUrl: string | null;
   role: WorkspaceRole;
   roleLabel: string;
+  membershipStatus: PeopleMembershipStatusValue;
   status: PeopleMembershipStatus;
   department: string;
+  departmentValue: string;
   joinedAt: string;
   openRequestedTickets: number;
   openAssignedTickets: number;
   assignedAssets: number;
+  isCurrentUser: boolean;
+  canManage: boolean;
+  assignableRoles: WorkspaceRole[];
+  recentEvents: PeopleMembershipEvent[];
 };
 
 export type PeopleDirectoryMetric = {
