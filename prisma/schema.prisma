@@ -95,6 +95,7 @@ model User {
   assignedAssets   Asset[]         @relation("AssetAssignee")
   comments         TicketComment[]
   events           TicketEvent[]   @relation("TicketEventActor")
+  assetEvents      AssetEvent[]    @relation("AssetEventActor")
   sessions         Session[]
   accounts         Account[]
 }
@@ -271,9 +272,28 @@ model Asset {
   assignedTo   User?        @relation("AssetAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
 
   tickets Ticket[]
+  events  AssetEvent[]
 
   @@unique([organizationId, assetTag])
   @@index([organizationId, status])
   @@index([assignedToId])
   @@index([serialNumber])
+}
+
+model AssetEvent {
+  id        String  @id @default(cuid())
+  assetId   String
+  actorId   String?
+  action    String  @db.VarChar(80)
+  fromValue String? @db.VarChar(255)
+  toValue   String? @db.VarChar(255)
+  metadata  Json?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  actor User? @relation("AssetEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([assetId, createdAt])
+  @@index([actorId])
 }
