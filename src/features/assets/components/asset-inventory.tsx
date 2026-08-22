@@ -1,22 +1,40 @@
 "use client";
 
 import {
+  Clock3,
   Laptop,
   Search,
   ShieldCheck,
   Ticket,
   UserRound,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import type { FormEvent } from "react";
 import {
   useMemo,
   useState,
 } from "react";
 
+import {
+  updateAssetAssignmentAction,
+  updateAssetStatusAction,
+} from "@/features/assets/server/asset-actions";
 import type {
   AssetInventoryData,
   AssetInventoryRecord,
   AssetInventoryStatus,
 } from "@/features/assets/types/asset-inventory";
+
+type Notice = {
+  tone: "success" | "error";
+  message: string;
+};
+
+type MutableAssetStatus =
+  | "IN_STOCK"
+  | "IN_REPAIR"
+  | "RETIRED"
+  | "LOST";
 
 const statusOptions: Array<
   | AssetInventoryStatus
@@ -54,16 +72,21 @@ function getStatusDotClass(
 function getWarrantyClass(
   asset: AssetInventoryRecord,
 ) {
-  switch (asset.warrantyState) {
-    case "expired":
-      return "text-danger";
-
-    case "expiring":
-      return "text-warning";
-
-    default:
-      return "text-muted";
+  if (
+    asset.warrantyState ===
+    "expired"
+  ) {
+    return "text-danger";
   }
+
+  if (
+    asset.warrantyState ===
+    "expiring"
+  ) {
+    return "text-warning";
+  }
+
+  return "text-muted";
 }
 
 function DetailRow({
@@ -91,6 +114,8 @@ export function AssetInventory({
 }: {
   data: AssetInventoryData;
 }) {
+  const router = useRouter();
+
   const [query, setQuery] =
     useState("");
 
@@ -108,15 +133,26 @@ export function AssetInventory({
       null,
   );
 
+  const [notice, setNotice] =
+    useState<Notice | null>(null);
+
+  const [
+    isSubmitting,
+    setIsSubmitting,
+  ] = useState(false);
+
   const filteredAssets =
     useMemo(() => {
       const normalizedQuery =
-        query.trim().toLowerCase();
+        query
+          .trim()
+          .toLowerCase();
 
       return data.records.filter(
         (asset) => {
           const matchesStatus =
-            status === "All statuses" ||
+            status ===
+              "All statuses" ||
             asset.status === status;
 
           if (!normalizedQuery) {
@@ -131,7 +167,8 @@ export function AssetInventory({
             asset.manufacturer,
             asset.model,
             asset.assignedTo?.name,
-            asset.assignedTo?.email,
+            asset.assignedTo
+              ?.email,
           ]
             .filter(Boolean)
             .join(" ")
@@ -160,6 +197,131 @@ export function AssetInventory({
     filteredAssets[0] ??
     null;
 
+  const hasLifecycleControls =
+    data.capabilities
+      .canAssignAssets ||
+    data.capabilities
+      .canUpdateAssetStatus;
+
+  function selectAsset(
+    assetId: string,
+  ) {
+    setSelectedAssetId(assetId);
+    setNotice(null);
+  }
+
+  async function submitStatus(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    if (
+      !selectedAsset ||
+      isSubmitting
+    ) {
+      return;
+    }
+
+    const formData =
+      new FormData(
+        event.currentTarget,
+      );
+
+    const nextStatus = String(
+      formData.get("status") ??
+        "",
+    ) as MutableAssetStatus;
+
+    setNotice(null);
+    setIsSubmitting(true);
+
+    try {
+      const result =
+        await updateAssetStatusAction(
+          {
+            assetId:
+              selectedAsset.databaseId,
+            status: nextStatus,
+          },
+        );
+
+      setNotice({
+        tone: result.success
+          ? "success"
+          : "error",
+        message: result.message,
+      });
+
+      if (result.success) {
+        router.refresh();
+      }
+    } catch {
+      setNotice({
+        tone: "error",
+        message:
+          "The asset status could not be updated.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function submitAssignment(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    if (
+      !selectedAsset ||
+      isSubmitting
+    ) {
+      return;
+    }
+
+    const formData =
+      new FormData(
+        event.currentTarget,
+      );
+
+    setNotice(null);
+    setIsSubmitting(true);
+
+    try {
+      const result =
+        await updateAssetAssignmentAction(
+          {
+            assetId:
+              selectedAsset.databaseId,
+            assignedToUserId:
+              String(
+                formData.get(
+                  "assignedToUserId",
+                ) ?? "",
+              ),
+          },
+        );
+
+      setNotice({
+        tone: result.success
+          ? "success"
+          : "error",
+        message: result.message,
+      });
+
+      if (result.success) {
+        router.refresh();
+      }
+    } catch {
+      setNotice({
+        tone: "error",
+        message:
+          "The asset assignment could not be updated.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <main className="mx-auto max-w-[1480px] p-4 sm:p-6">
       <header className="flex flex-col gap-2 border-b border-line pb-5 sm:flex-row sm:items-end sm:justify-between">
@@ -178,7 +340,9 @@ export function AssetInventory({
         </div>
 
         <p className="text-[11px] text-muted">
-          Read-only inventory
+          {hasLifecycleControls
+            ? "Lifecycle controls available"
+            : "Read-only inventory"}
         </p>
       </header>
 
@@ -186,27 +350,29 @@ export function AssetInventory({
         aria-label="Asset summary"
         className="mt-5 grid overflow-hidden rounded-[6px] border border-line bg-surface sm:grid-cols-2 xl:grid-cols-4"
       >
-        {data.metrics.map((metric) => (
-          <div
-            className="border-b border-line px-4 py-3 last:border-0 sm:[&:nth-child(odd)]:border-r xl:border-b-0 xl:border-r xl:last:border-r-0"
-            key={metric.label}
-          >
-            <p className="text-[11px] text-muted">
-              {metric.label}
-            </p>
+        {data.metrics.map(
+          (metric) => (
+            <div
+              className="border-b border-line px-4 py-3 last:border-0 sm:[&:nth-child(odd)]:border-r xl:border-b-0 xl:border-r xl:last:border-r-0"
+              key={metric.label}
+            >
+              <p className="text-[11px] text-muted">
+                {metric.label}
+              </p>
 
-            <p className="mt-1 text-[20px] font-semibold tabular-nums text-ink">
-              {metric.value}
-            </p>
+              <p className="mt-1 text-[20px] font-semibold tabular-nums text-ink">
+                {metric.value}
+              </p>
 
-            <p className="mt-0.5 text-[10px] text-muted">
-              {metric.description}
-            </p>
-          </div>
-        ))}
+              <p className="mt-0.5 text-[10px] text-muted">
+                {metric.description}
+              </p>
+            </div>
+          ),
+        )}
       </section>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
         <section className="min-w-0 overflow-hidden rounded-[6px] border border-line bg-surface">
           <div className="flex flex-col gap-2 border-b border-line p-3 sm:flex-row sm:items-center">
             <label className="relative flex-1">
@@ -233,35 +399,30 @@ export function AssetInventory({
               />
             </label>
 
-            <label>
-              <span className="sr-only">
-                Filter by status
-              </span>
-
-              <select
-                className="h-8 w-full rounded-[5px] border border-line bg-surface px-2.5 text-[12px] text-ink outline-none focus:border-accent sm:w-[150px]"
-                onChange={(event) =>
-                  setStatus(
-                    event.target
-                      .value as
-                      | AssetInventoryStatus
-                      | "All statuses",
-                  )
-                }
-                value={status}
-              >
-                {statusOptions.map(
-                  (option) => (
-                    <option
-                      key={option}
-                      value={option}
-                    >
-                      {option}
-                    </option>
-                  ),
-                )}
-              </select>
-            </label>
+            <select
+              aria-label="Filter by status"
+              className="h-8 rounded-[5px] border border-line bg-surface px-2.5 text-[12px] text-ink outline-none focus:border-accent"
+              onChange={(event) =>
+                setStatus(
+                  event.target
+                    .value as
+                    | AssetInventoryStatus
+                    | "All statuses",
+                )
+              }
+              value={status}
+            >
+              {statusOptions.map(
+                (option) => (
+                  <option
+                    key={option}
+                    value={option}
+                  >
+                    {option}
+                  </option>
+                ),
+              )}
+            </select>
           </div>
 
           <div className="overflow-x-auto">
@@ -319,7 +480,7 @@ export function AssetInventory({
                             <button
                               className="block max-w-[260px] text-left"
                               onClick={() =>
-                                setSelectedAssetId(
+                                selectAsset(
                                   asset.databaseId,
                                 )
                               }
@@ -356,13 +517,11 @@ export function AssetInventory({
                             </span>
                           </td>
 
-                          <td className="px-3 py-3">
-                            <p className="max-w-[180px] truncate text-[11px] text-[#4c5563]">
-                              {asset
-                                .assignedTo
-                                ?.name ??
-                                "Unassigned"}
-                            </p>
+                          <td className="px-3 py-3 text-[11px] text-[#4c5563]">
+                            {asset
+                              .assignedTo
+                              ?.name ??
+                              "Unassigned"}
                           </td>
 
                           <td
@@ -401,8 +560,8 @@ export function AssetInventory({
                       </p>
 
                       <p className="mt-1 text-[11px] text-muted">
-                        Change the search or
-                        status filter.
+                        Change the search
+                        or status filter.
                       </p>
                     </td>
                   </tr>
@@ -412,8 +571,9 @@ export function AssetInventory({
           </div>
 
           <footer className="border-t border-line px-4 py-2.5 text-[10px] text-muted">
-            Showing {filteredAssets.length}{" "}
-            of {data.records.length} visible
+            Showing{" "}
+            {filteredAssets.length} of{" "}
+            {data.records.length} visible
             assets
           </footer>
         </section>
@@ -445,6 +605,163 @@ export function AssetInventory({
                 </div>
               </div>
 
+              {notice ? (
+                <div
+                  className={`border-b border-line px-4 py-2.5 text-[11px] ${
+                    notice.tone ===
+                    "success"
+                      ? "bg-[#f1f8f4] text-success"
+                      : "bg-[#fff4f3] text-danger"
+                  }`}
+                >
+                  {notice.message}
+                </div>
+              ) : null}
+
+              {hasLifecycleControls ? (
+                <div className="space-y-3 border-b border-line bg-[#fafbfc] p-4">
+                  {data.capabilities
+                    .canUpdateAssetStatus ? (
+                    <form
+                      key={`status-${selectedAsset.databaseId}-${selectedAsset.statusValue}`}
+                      onSubmit={
+                        submitStatus
+                      }
+                    >
+                      <label className="text-[10px] font-medium text-muted">
+                        Lifecycle status
+
+                        <select
+                          className="mt-1.5 h-8 w-full rounded-[5px] border border-line bg-surface px-2 text-[12px] text-ink outline-none focus:border-accent"
+                          defaultValue={
+                            selectedAsset.statusValue ===
+                            "ASSIGNED"
+                              ? ""
+                              : selectedAsset.statusValue
+                          }
+                          name="status"
+                        >
+                          {selectedAsset.statusValue ===
+                          "ASSIGNED" ? (
+                            <option
+                              disabled
+                              value=""
+                            >
+                              Select next
+                              status
+                            </option>
+                          ) : null}
+
+                          <option value="IN_STOCK">
+                            In stock
+                          </option>
+
+                          <option value="IN_REPAIR">
+                            In repair
+                          </option>
+
+                          <option value="RETIRED">
+                            Retired
+                          </option>
+
+                          <option value="LOST">
+                            Lost
+                          </option>
+                        </select>
+                      </label>
+
+                      <button
+                        className="mt-2 h-8 w-full rounded-[5px] bg-action px-3 text-[11px] font-medium text-white hover:bg-[#171a1f] disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={
+                          isSubmitting
+                        }
+                        type="submit"
+                      >
+                        {isSubmitting
+                          ? "Saving..."
+                          : "Update status"}
+                      </button>
+                    </form>
+                  ) : null}
+
+                  {data.capabilities
+                    .canAssignAssets ? (
+                    <form
+                      key={`assignment-${selectedAsset.databaseId}-${selectedAsset.assignedTo?.id ?? "none"}`}
+                      onSubmit={
+                        submitAssignment
+                      }
+                    >
+                      <label className="text-[10px] font-medium text-muted">
+                        Assigned member
+
+                        <select
+                          className="mt-1.5 h-8 w-full rounded-[5px] border border-line bg-surface px-2 text-[12px] text-ink outline-none focus:border-accent"
+                          defaultValue={
+                            selectedAsset
+                              .assignedTo
+                              ?.id ?? ""
+                          }
+                          name="assignedToUserId"
+                        >
+                          <option value="">
+                            Unassigned
+                          </option>
+
+                          {data.memberOptions.map(
+                            (member) => {
+                              const assignmentLocked =
+                                selectedAsset.statusValue !==
+                                  "IN_STOCK" &&
+                                selectedAsset.statusValue !==
+                                  "ASSIGNED";
+
+                              return (
+                                <option
+                                  disabled={
+                                    assignmentLocked &&
+                                    member.id !==
+                                      selectedAsset
+                                        .assignedTo
+                                        ?.id
+                                  }
+                                  key={
+                                    member.id
+                                  }
+                                  value={
+                                    member.id
+                                  }
+                                >
+                                  {
+                                    member.name
+                                  }{" "}
+                                  ·{" "}
+                                  {
+                                    member.department
+                                  }
+                                </option>
+                              );
+                            },
+                          )}
+                        </select>
+                      </label>
+
+                      <button
+                        className="mt-2 h-8 w-full rounded-[5px] border border-line bg-surface px-3 text-[11px] font-medium text-ink hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={
+                          isSubmitting
+                        }
+                        type="submit"
+                      >
+                        {isSubmitting
+                          ? "Saving..."
+                          : "Update assignment"}
+                      </button>
+                    </form>
+                  ) : null}
+                </div>
+              ) : null}
+
               <dl className="px-4">
                 <DetailRow
                   label="Status"
@@ -455,7 +772,9 @@ export function AssetInventory({
 
                 <DetailRow
                   label="Type"
-                  value={selectedAsset.type}
+                  value={
+                    selectedAsset.type
+                  }
                 />
 
                 <DetailRow
@@ -514,7 +833,8 @@ export function AssetInventory({
                   <p className="mt-0.5 truncate text-[10px] text-muted">
                     {
                       selectedAsset
-                        .assignedTo.email
+                        .assignedTo
+                        .email
                     }
                   </p>
                 ) : null}
@@ -565,6 +885,62 @@ export function AssetInventory({
                   </p>
                 </div>
               </div>
+
+              {data.capabilities
+                .canViewAuditHistory ? (
+                <div className="border-t border-line px-4 py-4">
+                  <div className="flex items-center gap-2">
+                    <Clock3
+                      aria-hidden="true"
+                      className="size-3.5 text-muted"
+                      strokeWidth={1.8}
+                    />
+
+                    <h2 className="text-[11px] font-medium text-ink">
+                      Recent activity
+                    </h2>
+                  </div>
+
+                  {selectedAsset
+                    .activity.length >
+                  0 ? (
+                    <ol className="mt-3 space-y-3">
+                      {selectedAsset.activity.map(
+                        (activity) => (
+                          <li
+                            className="border-l border-line pl-3"
+                            key={
+                              activity.id
+                            }
+                          >
+                            <p className="text-[11px] leading-4 text-[#4c5563]">
+                              {
+                                activity.description
+                              }
+                            </p>
+
+                            <p className="mt-1 text-[9px] text-muted">
+                              {
+                                activity.actorName
+                              }{" "}
+                              ·{" "}
+                              {
+                                activity.createdAt
+                              }
+                            </p>
+                          </li>
+                        ),
+                      )}
+                    </ol>
+                  ) : (
+                    <p className="mt-3 text-[10px] text-muted">
+                      No lifecycle
+                      activity recorded
+                      yet.
+                    </p>
+                  )}
+                </div>
+              ) : null}
             </>
           ) : (
             <div className="px-5 py-12 text-center">
@@ -575,8 +951,8 @@ export function AssetInventory({
               />
 
               <p className="mt-2 text-[12px] text-muted">
-                No asset is available in
-                your current scope.
+                No asset is available
+                in your current scope.
               </p>
             </div>
           )}

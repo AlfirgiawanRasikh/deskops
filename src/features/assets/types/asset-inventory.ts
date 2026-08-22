@@ -1,3 +1,10 @@
+export type AssetStatusValue =
+  | "IN_STOCK"
+  | "ASSIGNED"
+  | "IN_REPAIR"
+  | "RETIRED"
+  | "LOST";
+
 export type AssetInventoryStatus =
   | "In stock"
   | "Assigned"
@@ -11,16 +18,32 @@ export type AssetWarrantyState =
   | "expired"
   | "none";
 
+export type AssetMemberOption = {
+  id: string;
+  name: string;
+  email: string;
+  department: string;
+};
+
+export type AssetActivityRecord = {
+  id: string;
+  description: string;
+  actorName: string;
+  createdAt: string;
+};
+
 export type AssetInventoryRecord = {
   databaseId: string;
   assetTag: string;
   name: string;
   type: string;
   status: AssetInventoryStatus;
+  statusValue: AssetStatusValue;
   serialNumber: string | null;
   manufacturer: string | null;
   model: string | null;
   assignedTo: {
+    id: string;
     name: string;
     email: string;
   } | null;
@@ -28,6 +51,7 @@ export type AssetInventoryRecord = {
   warrantyLabel: string;
   warrantyState: AssetWarrantyState;
   openTicketCount: number;
+  activity: AssetActivityRecord[];
 };
 
 export type AssetInventoryMetric = {
@@ -42,4 +66,10 @@ export type AssetInventoryData = {
   organizationName: string;
   records: AssetInventoryRecord[];
   metrics: AssetInventoryMetric[];
+  memberOptions: AssetMemberOption[];
+  capabilities: {
+    canAssignAssets: boolean;
+    canUpdateAssetStatus: boolean;
+    canViewAuditHistory: boolean;
+  };
 };
