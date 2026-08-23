@@ -90,12 +90,13 @@ model User {
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   memberships      Membership[]
-  requestedTickets Ticket[]        @relation("TicketRequester")
-  assignedTickets  Ticket[]        @relation("TicketAssignee")
-  assignedAssets   Asset[]         @relation("AssetAssignee")
+  requestedTickets Ticket[]          @relation("TicketRequester")
+  assignedTickets  Ticket[]          @relation("TicketAssignee")
+  assignedAssets   Asset[]           @relation("AssetAssignee")
   comments         TicketComment[]
-  events           TicketEvent[]   @relation("TicketEventActor")
-  assetEvents      AssetEvent[]    @relation("AssetEventActor")
+  events           TicketEvent[]     @relation("TicketEventActor")
+  assetEvents      AssetEvent[]      @relation("AssetEventActor")
+  membershipEvents MembershipEvent[] @relation("MembershipEventActor")
   sessions         Session[]
   accounts         Account[]
 }
@@ -167,12 +168,31 @@ model Membership {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events       MembershipEvent[]
 
   @@unique([organizationId, userId])
   @@index([userId])
   @@index([organizationId, role, status])
+}
+
+model MembershipEvent {
+  id           String  @id @default(cuid())
+  membershipId String
+  actorId      String?
+  action       String  @db.VarChar(80)
+  fromValue    Json?
+  toValue      Json?
+  metadata     Json?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  membership Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  actor      User?      @relation("MembershipEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([membershipId, createdAt])
+  @@index([actorId])
 }
 
 model Ticket {
