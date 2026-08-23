@@ -69,7 +69,7 @@ function getNavigationGroups(
           ? "My requests"
           : "My queue",
       icon: Inbox,
-      href: "/",
+      href: "/tickets/my-queue",
     },
   ];
 
@@ -78,7 +78,7 @@ function getNavigationGroups(
       key: "tickets",
       label: "All tickets",
       icon: Ticket,
-      href: "/",
+      href: "/tickets",
     });
   }
 

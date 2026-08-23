@@ -30,9 +30,13 @@ type Notice = {
 export function TicketDetailView({
   ticket,
   canAddInternalNotes,
+  backHref,
+  backLabel,
 }: {
   ticket: TicketDetailData;
   canAddInternalNotes: boolean;
+  backHref: string;
+  backLabel: string;
 }) {
   const router = useRouter();
 
@@ -107,14 +111,14 @@ export function TicketDetailView({
     <main className="mx-auto max-w-[1380px] p-4 sm:p-6">
       <Link
         className="inline-flex h-8 items-center gap-1.5 rounded-[5px] px-2 text-[12px] font-medium text-muted hover:bg-surface hover:text-ink"
-        href="/"
+        href={backHref}
       >
         <ArrowLeft
           aria-hidden="true"
           className="size-3.5"
           strokeWidth={1.8}
         />
-        Back to queue
+        {backLabel}
       </Link>
 
       <header className="mt-3 border-b border-line pb-5">
