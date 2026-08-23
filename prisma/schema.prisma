@@ -74,9 +74,11 @@ model Organization {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
-  memberships Membership[]
-  tickets     Ticket[]
-  assets      Asset[]
+  memberships          Membership[]
+  tickets              Ticket[]
+  assets               Asset[]
+  serviceLevelPolicies ServiceLevelPolicy[]
+  events               OrganizationEvent[]
 }
 
 model User {
@@ -89,16 +91,51 @@ model User {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
-  memberships      Membership[]
-  requestedTickets Ticket[]          @relation("TicketRequester")
-  assignedTickets  Ticket[]          @relation("TicketAssignee")
-  assignedAssets   Asset[]           @relation("AssetAssignee")
-  comments         TicketComment[]
-  events           TicketEvent[]     @relation("TicketEventActor")
-  assetEvents      AssetEvent[]      @relation("AssetEventActor")
-  membershipEvents MembershipEvent[] @relation("MembershipEventActor")
-  sessions         Session[]
-  accounts         Account[]
+  memberships        Membership[]
+  requestedTickets   Ticket[]            @relation("TicketRequester")
+  assignedTickets    Ticket[]            @relation("TicketAssignee")
+  assignedAssets     Asset[]             @relation("AssetAssignee")
+  comments           TicketComment[]
+  events             TicketEvent[]       @relation("TicketEventActor")
+  assetEvents        AssetEvent[]        @relation("AssetEventActor")
+  membershipEvents   MembershipEvent[]   @relation("MembershipEventActor")
+  organizationEvents OrganizationEvent[] @relation("OrganizationEventActor")
+  sessions           Session[]
+  accounts           Account[]
+}
+
+model ServiceLevelPolicy {
+  id                   String         @id @default(cuid())
+  organizationId       String
+  priority             TicketPriority
+  firstResponseMinutes Int
+  resolutionMinutes    Int
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, priority])
+  @@index([organizationId])
+}
+
+model OrganizationEvent {
+  id             String  @id @default(cuid())
+  organizationId String
+  actorId        String?
+  action         String  @db.VarChar(80)
+  fromValue      Json?
+  toValue        Json?
+  metadata       Json?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?        @relation("OrganizationEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([actorId])
 }
 
 model Session {

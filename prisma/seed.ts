@@ -48,21 +48,61 @@ const prisma = new PrismaClient({
   adapter,
 });
 
+const serviceLevelPolicyDefinitions = [
+  {
+    priority: "URGENT",
+    firstResponseMinutes: 15,
+    resolutionMinutes: 30,
+  },
+  {
+    priority: "HIGH",
+    firstResponseMinutes: 30,
+    resolutionMinutes: 240,
+  },
+  {
+    priority: "NORMAL",
+    firstResponseMinutes: 120,
+    resolutionMinutes: 480,
+  },
+  {
+    priority: "LOW",
+    firstResponseMinutes: 240,
+    resolutionMinutes: 2880,
+  },
+] as const;
+
 async function main() {
   const organization = await prisma.organization.upsert({
     where: {
       slug: "nusantara-systems",
     },
-    update: {
-      name: "Nusantara Systems",
-      timezone: "Asia/Jakarta",
-    },
+    update: {},
     create: {
       name: "Nusantara Systems",
       slug: "nusantara-systems",
       timezone: "Asia/Jakarta",
     },
   });
+
+  for (const policy of serviceLevelPolicyDefinitions) {
+    await prisma.serviceLevelPolicy.upsert({
+      where: {
+        organizationId_priority: {
+          organizationId: organization.id,
+          priority: policy.priority,
+        },
+      },
+      update: {},
+      create: {
+        organizationId: organization.id,
+        priority: policy.priority,
+        firstResponseMinutes:
+          policy.firstResponseMinutes,
+        resolutionMinutes:
+          policy.resolutionMinutes,
+      },
+    });
+  }
 
   const people = [
     {
@@ -664,6 +704,7 @@ async function main() {
     ticketCount,
     commentCount,
     eventCount,
+    serviceLevelPolicyCount,
   ] = await Promise.all([
     prisma.membership.count({
       where: {
@@ -694,6 +735,11 @@ async function main() {
         },
       },
     }),
+    prisma.serviceLevelPolicy.count({
+      where: {
+        organizationId: organization.id,
+      },
+    }),
   ]);
 
   const credentialAccountCount =
@@ -711,6 +757,9 @@ async function main() {
   console.log(`Tickets: ${ticketCount}`);
   console.log(`Comments: ${commentCount}`);
   console.log(`Audit events: ${eventCount}`);
+  console.log(
+    `SLA policies: ${serviceLevelPolicyCount}`,
+  );
   console.log(
     `Credential accounts: ${credentialAccountCount}`,
   );
