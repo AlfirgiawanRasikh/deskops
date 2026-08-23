@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   CheckCircle2,
   Clock3,
+  Download,
   Inbox,
   Laptop,
   ShieldCheck,
@@ -422,10 +423,31 @@ export function OperationalReports({
           </p>
         </div>
 
-        <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
-          <p className="text-[9px] text-muted">
-            Generated {data.generatedAt}
-          </p>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[9px] text-muted">
+              Generated {data.generatedAt}
+            </p>
+
+            <Link
+              className="inline-flex h-7 items-center gap-1.5 rounded-[5px] border border-action bg-action px-2.5 text-[10px] font-medium text-white transition-colors hover:bg-[#2f3540]"
+              href={`/api/reports/operational/xlsx?range=${data.range}`}
+            >
+              <Download
+                aria-hidden="true"
+                className="size-3.5"
+                strokeWidth={1.8}
+              />
+              Export Excel
+            </Link>
+
+            <Link
+              className="inline-flex h-7 items-center rounded-[5px] border border-line bg-surface px-2.5 text-[10px] font-medium text-[#4c5563] transition-colors hover:bg-canvas hover:text-ink"
+              href={`/api/reports/operational?range=${data.range}`}
+            >
+              CSV
+            </Link>
+          </div>
 
           <div className="inline-flex rounded-[5px] border border-line bg-surface p-0.5">
             {rangeOptions.map((option) => {
