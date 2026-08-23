@@ -27,6 +27,7 @@ import {
   updateTicketAssigneeActionSchema,
   updateTicketStatusActionSchema,
 } from "@/features/tickets/schemas/ticket-actions";
+import { defaultServiceLevelPolicies } from "@/features/settings/constants/service-level-policies";
 import type { TicketActionResult } from "@/features/tickets/types/ticket-actions";
 import { prisma } from "@/lib/prisma";
 
@@ -54,31 +55,6 @@ const statusToDatabaseStatus = {
   Scheduled: "SCHEDULED",
   Resolved: "RESOLVED",
 } as const;
-
-const serviceLevelTargets = {
-  Urgent: {
-    firstResponseMinutes: 15,
-    resolutionMinutes: 30,
-  },
-  High: {
-    firstResponseMinutes: 30,
-    resolutionMinutes: 240,
-  },
-  Normal: {
-    firstResponseMinutes: 120,
-    resolutionMinutes: 480,
-  },
-  Low: {
-    firstResponseMinutes: 240,
-    resolutionMinutes: 2880,
-  },
-} satisfies Record<
-  CreateTicketActionInput["priority"],
-  {
-    firstResponseMinutes: number;
-    resolutionMinutes: number;
-  }
->;
 
 type ActorContext = {
   organizationId: string;
@@ -192,6 +168,35 @@ async function createTicketWithRetry({
     try {
       return await prisma.$transaction(
         async (transaction) => {
+          const databasePriority =
+            priorityToDatabasePriority[
+              input.priority
+            ];
+
+          const configuredTarget =
+            await transaction.serviceLevelPolicy.findUnique(
+              {
+                where: {
+                  organizationId_priority: {
+                    organizationId,
+                    priority:
+                      databasePriority,
+                  },
+                },
+                select: {
+                  firstResponseMinutes:
+                    true,
+                  resolutionMinutes: true,
+                },
+              },
+            );
+
+          const target =
+            configuredTarget ??
+            defaultServiceLevelPolicies[
+              databasePriority
+            ];
+
           const latestTicketNumber =
             await transaction.ticket.aggregate({
               where: {
@@ -208,11 +213,6 @@ async function createTicketWithRetry({
 
           const now = new Date();
 
-          const target =
-            serviceLevelTargets[
-              input.priority
-            ];
-
           const ticket =
             await transaction.ticket.create({
               data: {
@@ -225,9 +225,7 @@ async function createTicketWithRetry({
                 description:
                   input.description,
                 priority:
-                  priorityToDatabasePriority[
-                    input.priority
-                  ],
+                  databasePriority,
                 status: "OPEN",
                 source,
                 category: input.category,

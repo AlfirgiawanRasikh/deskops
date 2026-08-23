@@ -91,15 +91,15 @@ test("creates a complete operational report CSV", () => {
   );
   assert.match(
     csv,
-    /Created tickets,8/,
+    /"Created tickets",8/,
   );
   assert.match(
     csv,
-    /SLA compliance rate,"80%"/,
+    /"SLA compliance rate","80%"/,
   );
   assert.match(
     csv,
-    /Mean resolution hours,12.5/,
+    /"Mean resolution hours",12.5/,
   );
   assert.match(
     csv,

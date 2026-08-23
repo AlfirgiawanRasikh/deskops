@@ -120,6 +120,7 @@ function getNavigationGroups(
       key: "settings",
       label: "Settings",
       icon: Settings,
+      href: "/settings",
     });
   }
 
