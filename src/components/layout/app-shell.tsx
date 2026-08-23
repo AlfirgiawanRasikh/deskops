@@ -107,6 +107,7 @@ function getNavigationGroups(
         key: "reports",
         label: "Reports",
         icon: BarChart3,
+        href: "/reports",
       },
     );
   }
