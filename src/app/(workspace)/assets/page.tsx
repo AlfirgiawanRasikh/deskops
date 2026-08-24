@@ -5,7 +5,21 @@ import { requireWorkspaceSession } from "@/features/auth/server/workspace-sessio
 
 export const dynamic = "force-dynamic";
 
-export default async function AssetsPage() {
+type AssetsPageProps = {
+  searchParams: Promise<{
+    asset?: string | string[];
+  }>;
+};
+
+export default async function AssetsPage({
+  searchParams,
+}: AssetsPageProps) {
+  const parameters = await searchParams;
+  const initialAssetId =
+    typeof parameters.asset === "string"
+      ? parameters.asset
+      : parameters.asset?.[0];
+
   const workspace =
     await requireWorkspaceSession();
 
@@ -24,7 +38,14 @@ export default async function AssetsPage() {
         workspace.organization.name
       }
     >
-      <AssetInventory data={data} />
+      <AssetInventory
+        data={data}
+        initialAssetId={initialAssetId}
+        key={
+          initialAssetId ??
+          "asset-inventory"
+        }
+      />
     </AppShell>
   );
 }

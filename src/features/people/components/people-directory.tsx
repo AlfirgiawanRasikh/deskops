@@ -371,8 +371,10 @@ function MembershipHistory({
 
 export function PeopleDirectory({
   data,
+  initialMembershipId,
 }: {
   data: PeopleDirectoryData;
+  initialMembershipId?: string;
 }) {
   const [query, setQuery] =
     useState("");
@@ -386,8 +388,14 @@ export function PeopleDirectory({
     selectedMembershipId,
     setSelectedMembershipId,
   ] = useState<string | null>(
-    data.records[0]?.membershipId ??
-      null,
+    data.records.some(
+      (person) =>
+        person.membershipId ===
+        initialMembershipId,
+    )
+      ? initialMembershipId ?? null
+      : data.records[0]
+          ?.membershipId ?? null,
   );
 
   const filteredPeople = useMemo(() => {

@@ -5,7 +5,21 @@ import { getPeopleDirectoryData } from "@/features/people/server/get-people-dire
 
 export const dynamic = "force-dynamic";
 
-export default async function PeoplePage() {
+type PeoplePageProps = {
+  searchParams: Promise<{
+    member?: string | string[];
+  }>;
+};
+
+export default async function PeoplePage({
+  searchParams,
+}: PeoplePageProps) {
+  const parameters = await searchParams;
+  const initialMembershipId =
+    typeof parameters.member === "string"
+      ? parameters.member
+      : parameters.member?.[0];
+
   const workspace =
     await requireWorkspaceSession();
 
@@ -24,7 +38,16 @@ export default async function PeoplePage() {
         workspace.organization.name
       }
     >
-      <PeopleDirectory data={data} />
+      <PeopleDirectory
+        data={data}
+        initialMembershipId={
+          initialMembershipId
+        }
+        key={
+          initialMembershipId ??
+          "people-directory"
+        }
+      />
     </AppShell>
   );
 }
