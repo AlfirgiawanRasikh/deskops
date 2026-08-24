@@ -111,8 +111,10 @@ function DetailRow({
 
 export function AssetInventory({
   data,
+  initialAssetId,
 }: {
   data: AssetInventoryData;
+  initialAssetId?: string;
 }) {
   const router = useRouter();
 
@@ -129,8 +131,14 @@ export function AssetInventory({
     selectedAssetId,
     setSelectedAssetId,
   ] = useState<string | null>(
-    data.records[0]?.databaseId ??
-      null,
+    data.records.some(
+      (asset) =>
+        asset.databaseId ===
+        initialAssetId,
+    )
+      ? initialAssetId ?? null
+      : data.records[0]
+          ?.databaseId ?? null,
   );
 
   const [notice, setNotice] =

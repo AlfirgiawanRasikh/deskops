@@ -7,7 +7,6 @@ import {
   Inbox,
   Laptop,
   LayoutDashboard,
-  Search,
   Settings,
   Ticket,
   Users,
@@ -17,6 +16,7 @@ import type { ReactNode } from "react";
 
 import { SignOutButton } from "@/features/auth/components/sign-out-button";
 import type { WorkspaceRole } from "@/features/auth/server/authorization";
+import { GlobalSearch } from "@/features/search/components/global-search";
 
 type NavigationKey =
   | "overview"
@@ -391,27 +391,7 @@ function Topbar({
         <Brand />
       </div>
 
-      <label className="relative hidden w-full max-w-[420px] sm:block">
-        <span className="sr-only">
-          Search DeskOps
-        </span>
-
-        <Search
-          aria-hidden="true"
-          className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted"
-          strokeWidth={1.8}
-        />
-
-        <input
-          className="h-8 w-full rounded-[5px] border border-line bg-canvas pl-8 pr-14 text-[13px] text-ink outline-none placeholder:text-[#8a93a1] focus:border-accent focus:bg-white"
-          placeholder="Search tickets, people, or assets"
-          type="search"
-        />
-
-        <kbd className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted">
-          Ctrl K
-        </kbd>
-      </label>
+      <GlobalSearch />
 
       <div className="ml-auto flex items-center gap-1">
         <button
