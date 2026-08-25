@@ -47,9 +47,11 @@ export type SelectOption = {
 
 export type OperationsDashboardCapabilities = {
   canAssignTickets: boolean;
+  canClaimUnassignedTickets: boolean;
   canViewOrganizationQueue: boolean;
   canUpdateTicketStatus: boolean;
   canSelectOtherRequesters: boolean;
+  currentUserId: string;
 };
 
 export type OperationsDashboardData = {

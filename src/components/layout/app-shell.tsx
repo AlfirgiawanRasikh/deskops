@@ -1,7 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
-  Bell,
   ChevronDown,
   CircleHelp,
   Inbox,
@@ -16,6 +15,7 @@ import type { ReactNode } from "react";
 
 import { SignOutButton } from "@/features/auth/components/sign-out-button";
 import type { WorkspaceRole } from "@/features/auth/server/authorization";
+import { NotificationCenter } from "@/features/notifications/components/notification-center";
 import { GlobalSearch } from "@/features/search/components/global-search";
 
 type NavigationKey =
@@ -406,19 +406,7 @@ function Topbar({
           />
         </button>
 
-        <button
-          aria-label="Notifications"
-          className="relative grid size-8 place-items-center rounded-[5px] text-muted hover:bg-canvas hover:text-ink"
-          type="button"
-        >
-          <Bell
-            aria-hidden="true"
-            className="size-4"
-            strokeWidth={1.8}
-          />
-
-          <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-danger" />
-        </button>
+        <NotificationCenter />
 
         <div className="ml-1 lg:hidden">
           <AccountMenu compact user={user} />

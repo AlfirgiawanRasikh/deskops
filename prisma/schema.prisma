@@ -57,6 +57,14 @@ enum CommentVisibility {
   INTERNAL
 }
 
+enum NotificationType {
+  TICKET_CREATED
+  TICKET_ASSIGNED
+  TICKET_STATUS_CHANGED
+  TICKET_REPLY_ADDED
+  TICKET_INTERNAL_NOTE_ADDED
+}
+
 enum AssetStatus {
   IN_STOCK
   ASSIGNED
@@ -79,6 +87,7 @@ model Organization {
   assets               Asset[]
   serviceLevelPolicies ServiceLevelPolicy[]
   events               OrganizationEvent[]
+  notifications Notification[]
 }
 
 model User {
@@ -102,6 +111,8 @@ model User {
   organizationEvents OrganizationEvent[] @relation("OrganizationEventActor")
   sessions           Session[]
   accounts           Account[]
+  receivedNotifications Notification[] @relation("NotificationRecipient")
+  sentNotifications     Notification[] @relation("NotificationActor")
 }
 
 model ServiceLevelPolicy {
@@ -264,6 +275,7 @@ model Ticket {
   comments TicketComment[]
   events   TicketEvent[]
 
+  notifications Notification[]
   @@unique([organizationId, number])
   @@index([organizationId, status, priority])
   @@index([requesterId])
@@ -304,6 +316,29 @@ model TicketEvent {
   actor  User?  @relation("TicketEventActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([ticketId, createdAt])
+  @@index([actorId])
+}
+
+model Notification {
+  id             String           @id @default(cuid())
+  organizationId String
+  recipientId    String
+  actorId        String?
+  ticketId       String?
+  type           NotificationType
+  title          String           @db.VarChar(120)
+  body           String           @db.VarChar(255)
+  readAt         DateTime?        @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  recipient    User         @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor        User?        @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  ticket       Ticket?      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, recipientId, readAt, createdAt])
+  @@index([ticketId])
   @@index([actorId])
 }
 

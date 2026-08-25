@@ -6,6 +6,8 @@ import {
   AuthorizationError,
   canAddInternalTicketNotes,
   canAssignTickets,
+  canChangeTicketAssignee,
+  canClaimUnassignedTickets,
   canCreateTicketForOtherMembers,
   canCreateTickets,
   canReplyToOrganizationTicket,
@@ -15,6 +17,10 @@ import {
   isAssignableTicketAssignee,
   type WorkspaceRole,
 } from "@/features/auth/server/authorization";
+import {
+  createNewTicketNotifications,
+  createTicketNotifications,
+} from "@/features/notifications/server/notification-center";
 import {
   addTicketInternalNoteActionSchema,
   addTicketReplyActionSchema,
@@ -59,6 +65,7 @@ const statusToDatabaseStatus = {
 type ActorContext = {
   organizationId: string;
   actorId: string;
+  actorName: string;
   role: WorkspaceRole;
 };
 
@@ -140,6 +147,7 @@ async function getActorContext(): Promise<ActorContext> {
     organizationId:
       workspace.organization.id,
     actorId: workspace.user.id,
+    actorName: workspace.user.name,
     role: workspace.membership.role,
   };
 }
@@ -148,6 +156,7 @@ async function createTicketWithRetry({
   input,
   organizationId,
   actorId,
+  actorName,
   requesterId,
   assetId,
   source,
@@ -155,6 +164,7 @@ async function createTicketWithRetry({
   input: CreateTicketActionInput;
   organizationId: string;
   actorId: string;
+  actorName: string;
   requesterId: string;
   assetId: string | null;
   source: "PORTAL" | "MANUAL";
@@ -275,6 +285,25 @@ async function createTicketWithRetry({
               },
             },
           });
+
+          if (source === "PORTAL") {
+            await createNewTicketNotifications(
+              transaction,
+              {
+                organizationId,
+                actorId,
+                actorName,
+                ticket: {
+                  id: ticket.id,
+                  number: ticket.number,
+                  type: ticket.type,
+                  title: input.title,
+                  requesterId,
+                  assigneeId: null,
+                },
+              },
+            );
+          }
 
           return {
             id: ticket.id,
@@ -420,6 +449,7 @@ export async function createTicketAction(
         organizationId:
           actor.organizationId,
         actorId: actor.actorId,
+        actorName: actor.actorName,
         requesterId:
           requesterMembership.userId,
         assetId,
@@ -465,7 +495,12 @@ export async function updateTicketAssigneeAction(
     const actor =
       await getActorContext();
 
-    if (!canAssignTickets(actor.role)) {
+    if (
+      !canAssignTickets(actor.role) &&
+      !canClaimUnassignedTickets(
+        actor.role,
+      )
+    ) {
       throw new AuthorizationError(
         "Your current role cannot assign tickets.",
       );
@@ -492,6 +527,10 @@ export async function updateTicketAssigneeAction(
               },
               select: {
                 id: true,
+                number: true,
+                type: true,
+                title: true,
+                requesterId: true,
                 assigneeId: true,
                 assignee: {
                   select: {
@@ -564,6 +603,22 @@ export async function updateTicketAssigneeAction(
             };
           }
 
+          if (
+            !canChangeTicketAssignee({
+              role: actor.role,
+              actorId: actor.actorId,
+              currentAssigneeId:
+                ticket.assigneeId,
+              nextAssigneeId,
+            })
+          ) {
+            throw new AuthorizationError(
+              actor.role === "TECHNICIAN"
+                ? "Technicians can only assign an unassigned ticket to themselves."
+                : "Your current role cannot change this ticket assignment.",
+            );
+          }
+
           await transaction.ticket.update({
             where: {
               id: ticket.id,
@@ -602,6 +657,32 @@ export async function updateTicketAssigneeAction(
               },
             },
           });
+
+          if (nextAssigneeId) {
+            await createTicketNotifications(
+              transaction,
+              {
+                organizationId:
+                  actor.organizationId,
+                actorId:
+                  actor.actorId,
+                actorName:
+                  actor.actorName,
+                event: "ASSIGNED",
+                ticket: {
+                  id: ticket.id,
+                  number:
+                    ticket.number,
+                  type: ticket.type,
+                  title: ticket.title,
+                  requesterId:
+                    ticket.requesterId,
+                  assigneeId:
+                    nextAssigneeId,
+                },
+              },
+            );
+          }
 
           return {
             changed: true,
@@ -680,6 +761,10 @@ export async function updateTicketStatusAction(
               },
               select: {
                 id: true,
+                number: true,
+                type: true,
+                title: true,
+                requesterId: true,
                 status: true,
                 assigneeId: true,
                 assignee: {
@@ -740,6 +825,31 @@ export async function updateTicketStatusAction(
               },
             });
 
+            await createTicketNotifications(
+              transaction,
+              {
+                organizationId:
+                  actor.organizationId,
+                actorId:
+                  actor.actorId,
+                actorName:
+                  actor.actorName,
+                event:
+                  "STATUS_CHANGED",
+                status: "OPEN",
+                ticket: {
+                  id: ticket.id,
+                  number:
+                    ticket.number,
+                  type: ticket.type,
+                  title: ticket.title,
+                  requesterId:
+                    ticket.requesterId,
+                  assigneeId: null,
+                },
+              },
+            );
+
             return {
               changed: true,
             };
@@ -794,6 +904,29 @@ export async function updateTicketStatusAction(
               },
             },
           });
+
+          await createTicketNotifications(
+            transaction,
+            {
+              organizationId:
+                actor.organizationId,
+              actorId: actor.actorId,
+              actorName:
+                actor.actorName,
+              event: "STATUS_CHANGED",
+              status: nextStatus,
+              ticket: {
+                id: ticket.id,
+                number: ticket.number,
+                type: ticket.type,
+                title: ticket.title,
+                requesterId:
+                  ticket.requesterId,
+                assigneeId:
+                  ticket.assigneeId,
+              },
+            },
+          );
 
           return {
             changed: true,
@@ -863,6 +996,11 @@ export async function addTicketReplyAction(
             },
             select: {
               id: true,
+              number: true,
+              type: true,
+              title: true,
+              requesterId: true,
+              assigneeId: true,
             },
           });
 
@@ -901,6 +1039,18 @@ export async function addTicketReplyAction(
             },
           },
         });
+
+        await createTicketNotifications(
+          transaction,
+          {
+            organizationId:
+              actor.organizationId,
+            actorId: actor.actorId,
+            actorName: actor.actorName,
+            event: "PUBLIC_REPLY",
+            ticket,
+          },
+        );
       },
       {
         isolationLevel:
@@ -970,6 +1120,11 @@ export async function addTicketInternalNoteAction(
             },
             select: {
               id: true,
+              number: true,
+              type: true,
+              title: true,
+              requesterId: true,
+              assigneeId: true,
             },
           });
 
@@ -1006,6 +1161,18 @@ export async function addTicketInternalNoteAction(
             },
           },
         });
+
+        await createTicketNotifications(
+          transaction,
+          {
+            organizationId:
+              actor.organizationId,
+            actorId: actor.actorId,
+            actorName: actor.actorName,
+            event: "INTERNAL_NOTE",
+            ticket,
+          },
+        );
       },
       {
         isolationLevel:

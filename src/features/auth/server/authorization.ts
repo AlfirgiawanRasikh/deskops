@@ -9,6 +9,8 @@ import { getWorkspaceSession } from "@/features/auth/server/workspace-session";
 export {
   canAddInternalTicketNotes,
   canAssignTickets,
+  canChangeTicketAssignee,
+  canClaimUnassignedTickets,
   canCreateTicketForOtherMembers,
   canCreateTickets,
   canReplyToOrganizationTicket,
