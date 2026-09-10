@@ -10,10 +10,10 @@ import type {
   TicketWorkspacePriorityFilter,
   TicketWorkspaceQuery,
   TicketWorkspaceRecord,
-  TicketWorkspaceSlaState,
   TicketWorkspaceStatusFilter,
   TicketWorkspaceView,
 } from "@/features/tickets/types/ticket-workspace";
+import { getTicketSlaSnapshot } from "@/features/tickets/utils/ticket-sla";
 import { prisma } from "@/lib/prisma";
 
 const PAGE_SIZE = 10;
@@ -167,78 +167,6 @@ function formatStatus(
     .toUpperCase()}${normalized.slice(1)}`;
 }
 
-function formatSla(
-  status: Exclude<
-    TicketWorkspaceStatusFilter,
-    "ALL"
-  >,
-  dueAt: Date | null,
-  now: Date,
-): {
-  label: string;
-  state: TicketWorkspaceSlaState;
-} {
-  if (
-    terminalStatuses.some(
-      (terminalStatus) =>
-        terminalStatus === status,
-    )
-  ) {
-    return {
-      label: formatStatus(
-        status,
-        true,
-      ),
-      state: "complete",
-    };
-  }
-
-  if (!dueAt) {
-    return {
-      label: "No target",
-      state: "neutral",
-    };
-  }
-
-  const remainingMinutes = Math.ceil(
-    (dueAt.getTime() - now.getTime()) /
-      60_000,
-  );
-
-  if (remainingMinutes <= 0) {
-    return {
-      label: "Breached",
-      state: "danger",
-    };
-  }
-
-  if (remainingMinutes < 60) {
-    return {
-      label: `${remainingMinutes}m left`,
-      state: "warning",
-    };
-  }
-
-  if (remainingMinutes < 1440) {
-    return {
-      label: `${Math.ceil(
-        remainingMinutes / 60,
-      )}h left`,
-      state:
-        remainingMinutes <= 120
-          ? "warning"
-          : "neutral",
-    };
-  }
-
-  return {
-    label: `${Math.ceil(
-      remainingMinutes / 1440,
-    )}d left`,
-    state: "neutral",
-  };
-}
-
 function formatDateTime(
   date: Date,
   timeZone: string,
@@ -382,7 +310,12 @@ export async function getTicketWorkspaceData({
         priority: true,
         status: true,
         assigneeId: true,
+        createdAt: true,
+        firstResponseDueAt: true,
+        firstRespondedAt: true,
         resolutionDueAt: true,
+        resolvedAt: true,
+        closedAt: true,
         updatedAt: true,
         requester: {
           select: {
@@ -409,11 +342,21 @@ export async function getTicketWorkspaceData({
 
   const records: TicketWorkspaceRecord[] =
     tickets.map((ticket) => {
-      const sla = formatSla(
-        ticket.status,
-        ticket.resolutionDueAt,
-        now,
-      );
+      const sla =
+        getTicketSlaSnapshot({
+          status: ticket.status,
+          createdAt: ticket.createdAt,
+          firstResponseDueAt:
+            ticket.firstResponseDueAt,
+          firstRespondedAt:
+            ticket.firstRespondedAt,
+          resolutionDueAt:
+            ticket.resolutionDueAt,
+          resolvedAt:
+            ticket.resolvedAt,
+          closedAt: ticket.closedAt,
+          now,
+        });
 
       return {
         databaseId: ticket.id,
@@ -443,8 +386,12 @@ export async function getTicketWorkspaceData({
         assigneeName:
           ticket.assignee?.name ??
           "Unassigned",
-        slaLabel: sla.label,
-        slaState: sla.state,
+        slaStatus:
+          sla.statusLabel,
+        slaTiming:
+          sla.timingLabel,
+        slaPhase: sla.phaseLabel,
+        slaState: sla.tone,
         updatedAt: formatDateTime(
           ticket.updatedAt,
           organization.timezone,

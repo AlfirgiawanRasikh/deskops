@@ -55,6 +55,20 @@ const priorityClasses: Record<
   Low: "text-muted",
 };
 
+const slaTextClasses = {
+  danger: "text-danger",
+  warning: "text-warning",
+  neutral: "text-ink",
+  complete: "text-success",
+} as const;
+
+const slaBarClasses = {
+  danger: "bg-danger",
+  warning: "bg-warning",
+  neutral: "bg-accent",
+  complete: "bg-success",
+} as const;
+
 const statusClasses: Record<
   TicketStatus,
   string
@@ -88,7 +102,7 @@ function MetricStrip({
   return (
     <section
       aria-label="Operations summary"
-      className="grid border-y border-line bg-surface sm:grid-cols-2 xl:grid-cols-4"
+      className="grid border-y border-line bg-surface sm:grid-cols-2 xl:grid-cols-5"
     >
       {metrics.map((metric, index) => (
         <div
@@ -284,7 +298,7 @@ function TicketQueue({
               <th className="w-[80px] px-3 font-medium">
                 Owner
               </th>
-              <th className="w-[82px] px-4 font-medium">
+              <th className="w-[145px] px-4 font-medium">
                 SLA
               </th>
             </tr>
@@ -369,23 +383,19 @@ function TicketQueue({
                       {ticket.assigneeShort}
                     </td>
 
-                    <td
-                      className={`px-4 text-[12px] font-medium tabular-nums ${
-                        ticket.priority ===
-                        "Urgent"
-                          ? "text-danger"
-                          : ticket.sla.includes(
-                                "h",
-                              ) &&
-                              Number.parseInt(
-                                ticket.sla,
-                                10,
-                              ) < 2
-                            ? "text-warning"
-                            : "text-ink"
-                      }`}
-                    >
-                      {ticket.sla}
+                    <td className="px-4">
+                      <span
+                        className={`block text-[11px] font-medium ${
+                          slaTextClasses[
+                            ticket.slaState
+                          ]
+                        }`}
+                      >
+                        {ticket.slaStatus}
+                      </span>
+                      <span className="mt-0.5 block text-[9px] text-muted tabular-nums">
+                        {ticket.slaTiming}
+                      </span>
                     </td>
                   </tr>
                 );
@@ -621,9 +631,9 @@ function ContextRail({
           <Clock3
             aria-hidden="true"
             className={`size-4 ${
-              ticket.priority === "Urgent"
-                ? "text-danger"
-                : "text-warning"
+              slaTextClasses[
+                ticket.slaState
+              ]
             }`}
             strokeWidth={1.8}
           />
@@ -631,29 +641,35 @@ function ContextRail({
           <div className="min-w-0 flex-1">
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-[12px] font-medium text-ink">
-                {ticket.priority === "Urgent"
-                  ? "Resolution at risk"
-                  : "Resolution target"}
+                {ticket.slaPhase}
               </span>
 
               <span
-                className={`text-[12px] font-semibold tabular-nums ${
-                  ticket.priority === "Urgent"
-                    ? "text-danger"
-                    : "text-ink"
+                className={`text-[12px] font-semibold ${
+                  slaTextClasses[
+                    ticket.slaState
+                  ]
                 }`}
               >
-                {ticket.sla}
+                {ticket.slaStatus}
               </span>
             </div>
 
+            <p className="mt-0.5 text-[10px] text-muted tabular-nums">
+              {ticket.slaTiming}
+            </p>
+
             <div className="mt-2 h-1 overflow-hidden rounded-full bg-[#eceef1]">
               <div
-                className={`h-full ${
-                  ticket.priority === "Urgent"
-                    ? "w-[88%] bg-danger"
-                    : "w-[46%] bg-accent"
+                aria-hidden="true"
+                className={`h-full transition-[width] ${
+                  slaBarClasses[
+                    ticket.slaState
+                  ]
                 }`}
+                style={{
+                  width: `${ticket.slaProgress}%`,
+                }}
               />
             </div>
           </div>

@@ -333,13 +333,16 @@ export function createOperationalReportWorkbookSheets(
     ),
     tableRow(
       [
-        "Overdue tickets",
+        "SLA-breached tickets",
         data.summary.overdueTickets,
       ],
       3,
     ),
     [
-      tableCell("SLA compliance", 4),
+      tableCell(
+        "Overall SLA compliance",
+        4,
+      ),
       data.summary.slaComplianceRate ===
       null
         ? tableCell("Not available", 4)
@@ -355,16 +358,56 @@ export function createOperationalReportWorkbookSheets(
     ],
     [
       tableCell(
-        "Mean resolution hours",
+        "First response SLA compliance",
         5,
       ),
-      data.summary.meanResolutionHours ===
+      data.summary
+        .firstResponseSlaComplianceRate ===
       null
         ? tableCell("Not available", 5)
         : tableCell(
             data.summary
-              .meanResolutionHours,
+              .firstResponseSlaComplianceRate /
+              100,
             5,
+            {
+              align: "right",
+              format: "0%",
+            },
+          ),
+    ],
+    [
+      tableCell(
+        "Resolution SLA compliance",
+        6,
+      ),
+      data.summary
+        .resolutionSlaComplianceRate ===
+      null
+        ? tableCell("Not available", 6)
+        : tableCell(
+            data.summary
+              .resolutionSlaComplianceRate /
+              100,
+            6,
+            {
+              align: "right",
+              format: "0%",
+            },
+          ),
+    ],
+    [
+      tableCell(
+        "Mean resolution hours",
+        7,
+      ),
+      data.summary.meanResolutionHours ===
+      null
+        ? tableCell("Not available", 7)
+        : tableCell(
+            data.summary
+              .meanResolutionHours,
+            7,
             {
               align: "right",
               format: "0.0",
@@ -484,7 +527,7 @@ export function createOperationalReportWorkbookSheets(
       "Role",
       "Open tickets",
       "Urgent tickets",
-      "Overdue tickets",
+      "SLA-breached tickets",
     ]),
     ...(data.technicianWorkload.length > 0
       ? data.technicianWorkload.map(

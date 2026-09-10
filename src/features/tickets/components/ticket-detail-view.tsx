@@ -20,7 +20,10 @@ import {
   addTicketReplyAction,
   updateTicketAssigneeAction,
 } from "@/features/tickets/server/ticket-actions";
-import type { TicketDetailData } from "@/features/tickets/types/ticket-detail";
+import type {
+  TicketDetailData,
+  TicketDetailSlaObjective,
+} from "@/features/tickets/types/ticket-detail";
 
 type ComposerMode =
   | "PUBLIC"
@@ -30,6 +33,24 @@ type Notice = {
   tone: "success" | "error";
   message: string;
 };
+
+const slaBadgeClasses = {
+  danger:
+    "border-[#f0c5ca] bg-[#fff7f6] text-danger",
+  warning:
+    "border-[#ead7a6] bg-[#fffaf0] text-warning",
+  neutral:
+    "border-line bg-canvas text-[#4c5563]",
+  complete:
+    "border-[#b9dfca] bg-[#f3faf6] text-success",
+} as const;
+
+const slaBarClasses = {
+  danger: "bg-danger",
+  warning: "bg-warning",
+  neutral: "bg-accent",
+  complete: "bg-success",
+} as const;
 
 export function TicketDetailView({
   ticket,
@@ -420,6 +441,53 @@ export function TicketDetailView({
         </section>
 
         <aside className="space-y-4 xl:sticky xl:top-[76px] xl:self-start">
+          <section className="overflow-hidden rounded-[6px] border border-line bg-surface">
+            <div className="border-b border-line px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Clock3
+                    aria-hidden="true"
+                    className="size-3.5 text-muted"
+                    strokeWidth={1.8}
+                  />
+                  <h2 className="text-[12px] font-semibold text-ink">
+                    Service level
+                  </h2>
+                </div>
+
+                <span
+                  className={`rounded-full border px-2 py-0.5 text-[9px] font-semibold ${
+                    slaBadgeClasses[
+                      ticket.sla.tone
+                    ]
+                  }`}
+                >
+                  {ticket.sla.status}
+                </span>
+              </div>
+
+              <p className="mt-1 text-[10px] text-muted tabular-nums">
+                {ticket.sla.phase} ·{" "}
+                {ticket.sla.timing}
+              </p>
+            </div>
+
+            <div className="divide-y divide-line">
+              <SlaObjectiveRow
+                completionLabel="Responded"
+                objective={
+                  ticket.sla.firstResponse
+                }
+              />
+              <SlaObjectiveRow
+                completionLabel="Resolved"
+                objective={
+                  ticket.sla.resolution
+                }
+              />
+            </div>
+          </section>
+
           <section className="rounded-[6px] border border-line bg-surface">
             <div className="border-b border-line px-4 py-3">
               <h2 className="text-[12px] font-semibold text-ink">
@@ -601,6 +669,72 @@ function DetailRow({
       <dd className="break-words font-medium text-ink">
         {value}
       </dd>
+    </div>
+  );
+}
+
+function SlaObjectiveRow({
+  objective,
+  completionLabel,
+}: {
+  objective: TicketDetailSlaObjective;
+  completionLabel: string;
+}) {
+  const completion =
+    objective.completedAt
+      ? `${completionLabel} ${objective.completedAt}`
+      : objective.status === "Canceled"
+        ? "Canceled before completion"
+        : "Pending";
+
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-medium text-ink">
+          {objective.label}
+        </p>
+        <span
+          className={`rounded-full border px-2 py-0.5 text-[9px] font-semibold ${
+            slaBadgeClasses[objective.tone]
+          }`}
+        >
+          {objective.status}
+        </span>
+      </div>
+
+      <p className="mt-1 text-[10px] text-muted tabular-nums">
+        {objective.timing}
+      </p>
+
+      <div
+        aria-label={`${objective.label} progress ${objective.progress}%`}
+        className="mt-2 h-1 overflow-hidden rounded-full bg-[#eceef1]"
+        role="progressbar"
+        aria-valuemax={100}
+        aria-valuemin={0}
+        aria-valuenow={
+          objective.progress
+        }
+      >
+        <div
+          aria-hidden="true"
+          className={`h-full ${
+            slaBarClasses[objective.tone]
+          }`}
+          style={{
+            width: `${objective.progress}%`,
+          }}
+        />
+      </div>
+
+      <div className="mt-2 space-y-0.5 text-[9px] leading-4 text-muted tabular-nums">
+        <p>
+          {objective.dueAt
+            ? `Due ${objective.dueAt}`
+            : "No deadline"}
+        </p>
+        <p>{completion}</p>
+      </div>
     </div>
   );
 }

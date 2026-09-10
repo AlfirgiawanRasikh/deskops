@@ -30,6 +30,8 @@ const reportData: OperationalReportData = {
     openTickets: 4,
     overdueTickets: 1,
     slaComplianceRate: 75,
+    firstResponseSlaComplianceRate: 80,
+    resolutionSlaComplianceRate: 67,
     meanResolutionHours: 6.5,
   },
   ticketTrend: [

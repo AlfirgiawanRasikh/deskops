@@ -7,6 +7,10 @@ import {
   getTicketReadScope,
 } from "@/features/auth/server/authorization";
 import type { TicketDetailData } from "@/features/tickets/types/ticket-detail";
+import {
+  getTicketSlaSnapshot,
+  getTicketSlaTone,
+} from "@/features/tickets/utils/ticket-sla";
 import { prisma } from "@/lib/prisma";
 
 function formatEnumValue(value: string) {
@@ -105,6 +109,11 @@ export async function getTicketDetailData(
         category: true,
         createdAt: true,
         updatedAt: true,
+        firstResponseDueAt: true,
+        firstRespondedAt: true,
+        resolutionDueAt: true,
+        resolvedAt: true,
+        closedAt: true,
         requester: {
           select: {
             name: true,
@@ -223,6 +232,76 @@ export async function getTicketDetailData(
       ? "INC"
       : "REQ";
 
+  const sla = getTicketSlaSnapshot({
+    status: ticket.status,
+    createdAt: ticket.createdAt,
+    firstResponseDueAt:
+      ticket.firstResponseDueAt,
+    firstRespondedAt:
+      ticket.firstRespondedAt,
+    resolutionDueAt:
+      ticket.resolutionDueAt,
+    resolvedAt: ticket.resolvedAt,
+    closedAt: ticket.closedAt,
+    now: new Date(),
+  });
+
+  const resolutionCompletedAt =
+    ticket.resolvedAt ??
+    ticket.closedAt;
+
+  const firstResponseSla = {
+    label: sla.firstResponse.label,
+    status:
+      sla.firstResponse.statusLabel,
+    timing:
+      sla.firstResponse.timingLabel,
+    dueAt: ticket.firstResponseDueAt
+      ? formatDateTime(
+          ticket.firstResponseDueAt,
+          timeZone,
+        )
+      : null,
+    completedAt:
+      ticket.firstRespondedAt
+        ? formatDateTime(
+            ticket.firstRespondedAt,
+            timeZone,
+          )
+        : null,
+    progress:
+      sla.firstResponse.progress,
+    tone: getTicketSlaTone(
+      sla.firstResponse.state,
+    ),
+  };
+
+  const resolutionSla = {
+    label: sla.resolution.label,
+    status:
+      sla.resolution.statusLabel,
+    timing:
+      sla.resolution.timingLabel,
+    dueAt: ticket.resolutionDueAt
+      ? formatDateTime(
+          ticket.resolutionDueAt,
+          timeZone,
+        )
+      : null,
+    completedAt:
+      resolutionCompletedAt
+        ? formatDateTime(
+            resolutionCompletedAt,
+            timeZone,
+          )
+        : null,
+    progress:
+      sla.resolution.progress,
+    tone: getTicketSlaTone(
+      sla.resolution.state,
+    ),
+  };
+
   return {
     databaseId: ticket.id,
     displayId: `${prefix}-${ticket.number}`,
@@ -268,6 +347,16 @@ export async function getTicketDetailData(
           }`,
         }),
       ),
+    sla: {
+      status: sla.statusLabel,
+      phase: sla.phaseLabel,
+      timing: sla.timingLabel,
+      progress: sla.progress,
+      tone: sla.tone,
+      firstResponse:
+        firstResponseSla,
+      resolution: resolutionSla,
+    },
     asset: ticket.asset
       ? {
           label: `${ticket.asset.assetTag} - ${
