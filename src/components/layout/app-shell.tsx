@@ -6,6 +6,7 @@ import {
   Inbox,
   Laptop,
   LayoutDashboard,
+  ScrollText,
   Settings,
   Ticket,
   Users,
@@ -25,6 +26,7 @@ type NavigationKey =
   | "assets"
   | "people"
   | "reports"
+  | "audit"
   | "settings";
 
 type NavigationItem = {
@@ -116,12 +118,20 @@ function getNavigationGroups(
     role === "OWNER" ||
     role === "ADMIN"
   ) {
-    manageItems.push({
-      key: "settings",
-      label: "Settings",
-      icon: Settings,
-      href: "/settings",
-    });
+    manageItems.push(
+      {
+        key: "audit",
+        label: "Audit log",
+        icon: ScrollText,
+        href: "/audit",
+      },
+      {
+        key: "settings",
+        label: "Settings",
+        icon: Settings,
+        href: "/settings",
+      },
+    );
   }
 
   return [
