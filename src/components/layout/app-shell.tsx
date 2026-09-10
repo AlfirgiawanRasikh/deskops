@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
+  BookOpenText,
   ChevronDown,
   CircleHelp,
   Inbox,
@@ -24,6 +25,7 @@ type NavigationKey =
   | "queue"
   | "tickets"
   | "assets"
+  | "knowledge"
   | "people"
   | "reports"
   | "audit"
@@ -89,6 +91,13 @@ function getNavigationGroups(
     label: "Assets",
     icon: Laptop,
     href: "/assets",
+  });
+
+  workspaceItems.push({
+    key: "knowledge",
+    label: "Knowledge base",
+    icon: BookOpenText,
+    href: "/knowledge",
   });
 
   const manageItems: NavigationItem[] = [];
@@ -404,17 +413,17 @@ function Topbar({
       <GlobalSearch />
 
       <div className="ml-auto flex items-center gap-1">
-        <button
+        <Link
           aria-label="Help"
           className="grid size-8 place-items-center rounded-[5px] text-muted hover:bg-canvas hover:text-ink"
-          type="button"
+          href="/knowledge"
         >
           <CircleHelp
             aria-hidden="true"
             className="size-4"
             strokeWidth={1.8}
           />
-        </button>
+        </Link>
 
         <NotificationCenter />
 

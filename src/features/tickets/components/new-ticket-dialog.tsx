@@ -1,8 +1,17 @@
 "use client";
 
-import { X } from "lucide-react";
+import {
+  BookOpenText,
+  ExternalLink,
+  X,
+} from "lucide-react";
+import Link from "next/link";
 import type { FormEvent } from "react";
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import type { SelectOption } from "@/features/operations/types/operations-dashboard";
 import {
@@ -10,6 +19,8 @@ import {
   type NewTicketInput,
 } from "@/features/tickets/schemas/new-ticket";
 import type { TicketActionResult } from "@/features/tickets/types/ticket-actions";
+import type { KnowledgeArticleSuggestion } from "@/features/knowledge/types/knowledge-base";
+import { findKnowledgeSuggestions } from "@/features/knowledge/utils/knowledge-suggestions";
 
 type FieldErrors = Partial<
   Record<keyof NewTicketInput, string>
@@ -21,12 +32,14 @@ const inputClassName =
 export function NewTicketDialog({
   requesterOptions,
   assetOptions,
+  suggestedArticles,
   requesterLocked,
   onClose,
   onCreate,
 }: {
   requesterOptions: SelectOption[];
   assetOptions: SelectOption[];
+  suggestedArticles: KnowledgeArticleSuggestion[];
   requesterLocked: boolean;
   onClose: () => void;
   onCreate: (
@@ -39,6 +52,26 @@ export function NewTicketDialog({
     useState("");
   const [submitting, setSubmitting] =
     useState(false);
+  const [title, setTitle] =
+    useState("");
+  const [category, setCategory] =
+    useState("");
+  const visibleSuggestions = useMemo(
+    () =>
+      requesterLocked
+        ? findKnowledgeSuggestions({
+            articles: suggestedArticles,
+            title,
+            category,
+          })
+        : [],
+    [
+      category,
+      requesterLocked,
+      suggestedArticles,
+      title,
+    ],
+  );
 
   useEffect(() => {
     const previousOverflow =
@@ -266,6 +299,11 @@ export function NewTicketDialog({
                   autoFocus
                   className={inputClassName}
                   name="title"
+                  onChange={(event) =>
+                    setTitle(
+                      event.target.value,
+                    )
+                  }
                   placeholder="Short summary of the issue"
                   type="text"
                 />
@@ -352,6 +390,11 @@ export function NewTicketDialog({
                   className={inputClassName}
                   defaultValue=""
                   name="category"
+                  onChange={(event) =>
+                    setCategory(
+                      event.target.value,
+                    )
+                  }
                 >
                   <option disabled value="">
                     Select category
@@ -405,6 +448,54 @@ export function NewTicketDialog({
 
                 {fieldError("assetId")}
               </label>
+
+              {requesterLocked &&
+              visibleSuggestions.length > 0 ? (
+                <section className="overflow-hidden rounded-[5px] border border-[#cfdcf2] bg-[#f7f9fc] sm:col-span-2">
+                  <div className="flex items-center gap-2 border-b border-[#dce4ef] px-3 py-2.5">
+                    <BookOpenText
+                      aria-hidden="true"
+                      className="size-3.5 text-[#49627d]"
+                      strokeWidth={1.8}
+                    />
+                    <div>
+                      <p className="text-[11px] font-semibold text-ink">
+                        Suggested help
+                      </p>
+                      <p className="mt-0.5 text-[9px] text-muted">
+                        These published guides may resolve the issue before submission.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-[#dce4ef]">
+                    {visibleSuggestions.map(
+                      (article) => (
+                        <Link
+                          className="flex items-start justify-between gap-4 px-3 py-2.5 hover:bg-white/70"
+                          href={`/knowledge/${article.id}`}
+                          key={article.id}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-[11px] font-medium text-[#405b78]">
+                              {article.title}
+                            </span>
+                            <span className="mt-0.5 block line-clamp-1 text-[9px] text-muted">
+                              {article.summary}
+                            </span>
+                          </span>
+                          <ExternalLink
+                            aria-hidden="true"
+                            className="mt-0.5 size-3 shrink-0 text-muted"
+                          />
+                        </Link>
+                      ),
+                    )}
+                  </div>
+                </section>
+              ) : null}
             </div>
           </fieldset>
 

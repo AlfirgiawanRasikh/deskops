@@ -21,6 +21,7 @@ import {
 
 import {
   type DashboardMetric,
+  type OperationsDashboardData,
   type OperationsDashboardCapabilities,
   type SelectOption,
   type TicketPriority,
@@ -810,6 +811,7 @@ export function OperationsDashboard({
   requesterOptions,
   assetOptions,
   assigneeOptions,
+  knowledgeSuggestions,
   capabilities,
 }: {
   initialTickets: TicketRecord[];
@@ -819,6 +821,7 @@ export function OperationsDashboard({
   requesterOptions: SelectOption[];
   assetOptions: SelectOption[];
   assigneeOptions: SelectOption[];
+  knowledgeSuggestions: OperationsDashboardData["knowledgeSuggestions"];
   capabilities: OperationsDashboardCapabilities;
 }) {
   const router = useRouter();
@@ -1229,6 +1232,9 @@ export function OperationsDashboard({
       {newTicketOpen ? (
         <NewTicketDialog
           assetOptions={assetOptions}
+          suggestedArticles={
+            knowledgeSuggestions
+          }
           onClose={closeNewTicketDialog}
           onCreate={createTicket}
           requesterOptions={

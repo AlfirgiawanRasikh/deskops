@@ -2,6 +2,7 @@ export const auditLogCategoryValues = [
   "ALL",
   "TICKET",
   "ASSET",
+  "KNOWLEDGE",
   "MEMBER",
   "WORKSPACE",
 ] as const;

@@ -38,6 +38,15 @@ export type AssetAuditEvent =
     };
   };
 
+export type KnowledgeAuditEvent =
+  BaseAuditEvent & {
+    article: {
+      id: string;
+      title: string;
+      category: string;
+    };
+  };
+
 export type MembershipAuditEvent =
   BaseAuditEvent & {
     membership: {
@@ -350,6 +359,85 @@ export function formatAssetAuditEvent(
     source: formatSource(
       event.metadata,
       "Asset inventory",
+    ),
+    createdAt: event.createdAt,
+    timeZone,
+  });
+}
+
+function formatKnowledgeAction(
+  event: KnowledgeAuditEvent,
+) {
+  switch (event.action) {
+    case "KNOWLEDGE_ARTICLE_CREATED":
+      return {
+        action: "Knowledge article created",
+        summary:
+          "Created a new private draft.",
+      };
+
+    case "KNOWLEDGE_ARTICLE_UPDATED": {
+      const fields = getStringArray(
+        event.metadata,
+        "changedFields",
+      );
+
+      return {
+        action: "Knowledge article updated",
+        summary:
+          fields.length > 0
+            ? `Updated ${fields.join(
+                ", ",
+              )}.`
+            : "Updated the article content.",
+      };
+    }
+
+    case "KNOWLEDGE_ARTICLE_STATUS_CHANGED": {
+      const previousStatus = getString(
+        event.fromValue,
+        "status",
+      );
+      const nextStatus = getString(
+        event.toValue,
+        "status",
+      );
+
+      return {
+        action: "Knowledge status changed",
+        summary: `Status: ${formatEnum(
+          previousStatus,
+        )} → ${formatEnum(
+          nextStatus,
+        )}.`,
+      };
+    }
+
+    default:
+      return {
+        action: formatEnum(event.action),
+        summary:
+          "Updated this knowledge article.",
+      };
+  }
+}
+
+export function formatKnowledgeAuditEvent(
+  event: KnowledgeAuditEvent,
+  timeZone: string,
+) {
+  return createRecord({
+    id: event.id,
+    category: "KNOWLEDGE",
+    ...formatKnowledgeAction(event),
+    actor: event.actor,
+    resource: {
+      label: `${event.article.category} · ${event.article.title}`,
+      href: `/knowledge/${event.article.id}`,
+    },
+    source: formatSource(
+      event.metadata,
+      "Knowledge base",
     ),
     createdAt: event.createdAt,
     timeZone,

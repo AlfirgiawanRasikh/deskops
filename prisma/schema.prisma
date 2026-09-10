@@ -65,6 +65,12 @@ enum NotificationType {
   TICKET_INTERNAL_NOTE_ADDED
 }
 
+enum KnowledgeArticleStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
 enum AssetStatus {
   IN_STOCK
   ASSIGNED
@@ -87,7 +93,8 @@ model Organization {
   assets               Asset[]
   serviceLevelPolicies ServiceLevelPolicy[]
   events               OrganizationEvent[]
-  notifications Notification[]
+  notifications        Notification[]
+  knowledgeArticles    KnowledgeArticle[]
 }
 
 model User {
@@ -100,19 +107,21 @@ model User {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
-  memberships        Membership[]
-  requestedTickets   Ticket[]            @relation("TicketRequester")
-  assignedTickets    Ticket[]            @relation("TicketAssignee")
-  assignedAssets     Asset[]             @relation("AssetAssignee")
-  comments           TicketComment[]
-  events             TicketEvent[]       @relation("TicketEventActor")
-  assetEvents        AssetEvent[]        @relation("AssetEventActor")
-  membershipEvents   MembershipEvent[]   @relation("MembershipEventActor")
-  organizationEvents OrganizationEvent[] @relation("OrganizationEventActor")
-  sessions           Session[]
-  accounts           Account[]
-  receivedNotifications Notification[] @relation("NotificationRecipient")
-  sentNotifications     Notification[] @relation("NotificationActor")
+  memberships               Membership[]
+  requestedTickets          Ticket[]                @relation("TicketRequester")
+  assignedTickets           Ticket[]                @relation("TicketAssignee")
+  assignedAssets            Asset[]                 @relation("AssetAssignee")
+  comments                  TicketComment[]
+  events                    TicketEvent[]           @relation("TicketEventActor")
+  assetEvents               AssetEvent[]            @relation("AssetEventActor")
+  membershipEvents          MembershipEvent[]       @relation("MembershipEventActor")
+  organizationEvents        OrganizationEvent[]     @relation("OrganizationEventActor")
+  sessions                  Session[]
+  accounts                  Account[]
+  receivedNotifications     Notification[]          @relation("NotificationRecipient")
+  sentNotifications         Notification[]          @relation("NotificationActor")
+  authoredKnowledgeArticles KnowledgeArticle[]      @relation("KnowledgeArticleAuthor")
+  knowledgeArticleEvents    KnowledgeArticleEvent[] @relation("KnowledgeArticleEventActor")
 }
 
 model ServiceLevelPolicy {
@@ -260,7 +269,7 @@ model Ticket {
   assetId     String?
 
   firstResponseDueAt DateTime? @db.Timestamptz(3)
-  firstRespondedAt    DateTime? @db.Timestamptz(3)
+  firstRespondedAt   DateTime? @db.Timestamptz(3)
   resolutionDueAt    DateTime? @db.Timestamptz(3)
   resolvedAt         DateTime? @db.Timestamptz(3)
   closedAt           DateTime? @db.Timestamptz(3)
@@ -277,6 +286,7 @@ model Ticket {
   events   TicketEvent[]
 
   notifications Notification[]
+
   @@unique([organizationId, number])
   @@index([organizationId, status, priority])
   @@index([requesterId])
@@ -341,6 +351,48 @@ model Notification {
 
   @@index([organizationId, recipientId, readAt, createdAt])
   @@index([ticketId])
+  @@index([actorId])
+}
+
+model KnowledgeArticle {
+  id             String                 @id @default(cuid())
+  organizationId String
+  authorId       String
+  title          String                 @db.VarChar(120)
+  summary        String                 @db.VarChar(240)
+  content        String                 @db.Text
+  category       String                 @db.VarChar(80)
+  tags           String[]               @default([])
+  status         KnowledgeArticleStatus @default(DRAFT)
+  publishedAt    DateTime?              @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  author       User                    @relation("KnowledgeArticleAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  events       KnowledgeArticleEvent[]
+
+  @@index([organizationId, status, updatedAt])
+  @@index([organizationId, category])
+  @@index([authorId])
+}
+
+model KnowledgeArticleEvent {
+  id        String  @id @default(cuid())
+  articleId String
+  actorId   String?
+  action    String  @db.VarChar(80)
+  fromValue Json?
+  toValue   Json?
+  metadata  Json?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  article KnowledgeArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  actor   User?            @relation("KnowledgeArticleEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([articleId, createdAt])
   @@index([actorId])
 }
 

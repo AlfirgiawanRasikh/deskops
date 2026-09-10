@@ -206,6 +206,7 @@ export async function getOperationsDashboardData(): Promise<OperationsDashboardD
     assignedAssetCount,
     activeMemberships,
     selectableAssets,
+    knowledgeArticles,
   ] = await prisma.$transaction([
     prisma.ticket.findMany({
       where: {
@@ -388,6 +389,23 @@ export async function getOperationsDashboardData(): Promise<OperationsDashboardD
         assetTag: true,
         name: true,
         model: true,
+      },
+    }),
+    prisma.knowledgeArticle.findMany({
+      where: {
+        organizationId: organization.id,
+        status: "PUBLISHED",
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+      take: 30,
+      select: {
+        id: true,
+        title: true,
+        summary: true,
+        category: true,
+        tags: true,
       },
     }),
   ]);
@@ -624,6 +642,9 @@ export async function getOperationsDashboardData(): Promise<OperationsDashboardD
           }`,
         }),
       ),
+
+    knowledgeSuggestions:
+      knowledgeArticles,
 
     metrics: [
       {
