@@ -408,7 +408,7 @@ export function TicketWorkspace({
                 <th className="w-[150px] px-3 font-medium">
                   Owner
                 </th>
-                <th className="w-[105px] px-3 font-medium">
+                <th className="w-[160px] px-3 font-medium">
                   SLA
                 </th>
                 <th className="w-[160px] px-4 font-medium">
@@ -483,14 +483,20 @@ export function TicketWorkspace({
                       {ticket.assigneeName}
                     </td>
 
-                    <td
-                      className={`px-3 align-middle text-[11px] font-medium tabular-nums ${
-                        slaClasses[
-                          ticket.slaState
-                        ]
-                      }`}
-                    >
-                      {ticket.slaLabel}
+                    <td className="px-3 align-middle">
+                      <span
+                        className={`block text-[11px] font-medium ${
+                          slaClasses[
+                            ticket.slaState
+                          ]
+                        }`}
+                      >
+                        {ticket.slaStatus}
+                      </span>
+                      <span className="mt-0.5 block text-[9px] text-muted tabular-nums">
+                        {ticket.slaPhase} ·{" "}
+                        {ticket.slaTiming}
+                      </span>
                     </td>
 
                     <td className="px-4 align-middle text-[10px] text-muted tabular-nums">

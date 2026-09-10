@@ -13,6 +13,10 @@ import {
   getOperationalReportRangeConfiguration,
   parseOperationalReportRange,
 } from "@/features/reports/utils/report-range";
+import {
+  calculateSlaComplianceRate,
+  getTicketSlaSnapshot,
+} from "@/features/tickets/utils/ticket-sla";
 import { prisma } from "@/lib/prisma";
 
 const millisecondsPerDay =
@@ -283,9 +287,13 @@ export async function getOperationalReportData(
       select: {
         id: true,
         category: true,
+        status: true,
         createdAt: true,
+        firstResponseDueAt: true,
+        firstRespondedAt: true,
         resolvedAt: true,
         resolutionDueAt: true,
+        closedAt: true,
         asset: {
           select: {
             manufacturer: true,
@@ -310,7 +318,12 @@ export async function getOperationalReportData(
         id: true,
         status: true,
         priority: true,
+        createdAt: true,
+        firstResponseDueAt: true,
+        firstRespondedAt: true,
         resolutionDueAt: true,
+        resolvedAt: true,
+        closedAt: true,
         assigneeId: true,
       },
     }),
@@ -352,7 +365,14 @@ export async function getOperationalReportData(
               },
               select: {
                 priority: true,
+                status: true,
+                createdAt: true,
+                firstResponseDueAt:
+                  true,
+                firstRespondedAt: true,
                 resolutionDueAt: true,
+                resolvedAt: true,
+                closedAt: true,
               },
             },
           },
@@ -385,30 +405,72 @@ export async function getOperationalReportData(
         ticket.resolvedAt <= now,
     );
 
-  const ticketsWithResolutionTarget =
-    resolvedTickets.filter(
-      (ticket) =>
-        ticket.resolutionDueAt !== null &&
-        ticket.resolvedAt !== null,
+  const createdTicketSla =
+    createdTickets
+      .filter(
+        (ticket) =>
+          ticket.status !==
+          "CANCELED",
+      )
+      .map((ticket) =>
+        getTicketSlaSnapshot({
+          status: ticket.status,
+          createdAt: ticket.createdAt,
+          firstResponseDueAt:
+            ticket.firstResponseDueAt,
+          firstRespondedAt:
+            ticket.firstRespondedAt,
+          resolutionDueAt:
+            ticket.resolutionDueAt,
+          resolvedAt:
+            ticket.resolvedAt,
+          closedAt: ticket.closedAt,
+          now,
+        }),
+      );
+
+  const resolvedTicketSla =
+    resolvedTickets.map((ticket) =>
+      getTicketSlaSnapshot({
+        status: ticket.status,
+        createdAt: ticket.createdAt,
+        firstResponseDueAt:
+          ticket.firstResponseDueAt,
+        firstRespondedAt:
+          ticket.firstRespondedAt,
+        resolutionDueAt:
+          ticket.resolutionDueAt,
+        resolvedAt: ticket.resolvedAt,
+        closedAt: ticket.closedAt,
+        now,
+      }),
     );
 
-  const compliantTickets =
-    ticketsWithResolutionTarget.filter(
-      (ticket) =>
-        ticket.resolvedAt !== null &&
-        ticket.resolutionDueAt !== null &&
-        ticket.resolvedAt <=
-          ticket.resolutionDueAt,
+  const firstResponseObjectives =
+    createdTicketSla.map(
+      (sla) => sla.firstResponse,
+    );
+
+  const resolutionObjectives =
+    resolvedTicketSla.map(
+      (sla) => sla.resolution,
+    );
+
+  const firstResponseSlaComplianceRate =
+    calculateSlaComplianceRate(
+      firstResponseObjectives,
+    );
+
+  const resolutionSlaComplianceRate =
+    calculateSlaComplianceRate(
+      resolutionObjectives,
     );
 
   const slaComplianceRate =
-    ticketsWithResolutionTarget.length > 0
-      ? Math.round(
-          (compliantTickets.length /
-            ticketsWithResolutionTarget.length) *
-            100,
-        )
-      : null;
+    calculateSlaComplianceRate([
+      ...firstResponseObjectives,
+      ...resolutionObjectives,
+    ]);
 
   const totalResolutionMilliseconds =
     resolvedTickets.reduce(
@@ -438,11 +500,25 @@ export async function getOperationalReportData(
       : null;
 
   const overdueTickets =
-    openTickets.filter(
-      (ticket) =>
-        ticket.resolutionDueAt !== null &&
-        ticket.resolutionDueAt < now,
-    );
+    openTickets.filter((ticket) => {
+      const sla =
+        getTicketSlaSnapshot({
+          status: ticket.status,
+          createdAt: ticket.createdAt,
+          firstResponseDueAt:
+            ticket.firstResponseDueAt,
+          firstRespondedAt:
+            ticket.firstRespondedAt,
+          resolutionDueAt:
+            ticket.resolutionDueAt,
+          resolvedAt:
+            ticket.resolvedAt,
+          closedAt: ticket.closedAt,
+          now,
+        });
+
+      return sla.state === "breached";
+    });
 
   const statusCounts =
     new Map<string, number>();
@@ -529,11 +605,31 @@ export async function getOperationalReportData(
               ).length,
             overdueTickets:
               assignedTickets.filter(
-                (ticket) =>
-                  ticket.resolutionDueAt !==
-                    null &&
-                  ticket.resolutionDueAt <
-                    now,
+                (ticket) => {
+                  const sla =
+                    getTicketSlaSnapshot({
+                      status:
+                        ticket.status,
+                      createdAt:
+                        ticket.createdAt,
+                      firstResponseDueAt:
+                        ticket.firstResponseDueAt,
+                      firstRespondedAt:
+                        ticket.firstRespondedAt,
+                      resolutionDueAt:
+                        ticket.resolutionDueAt,
+                      resolvedAt:
+                        ticket.resolvedAt,
+                      closedAt:
+                        ticket.closedAt,
+                      now,
+                    });
+
+                  return (
+                    sla.state ===
+                    "breached"
+                  );
+                },
               ).length,
           },
         ];
@@ -569,6 +665,8 @@ export async function getOperationalReportData(
       overdueTickets:
         overdueTickets.length,
       slaComplianceRate,
+      firstResponseSlaComplianceRate,
+      resolutionSlaComplianceRate,
       meanResolutionHours,
     },
     ticketTrend: createTrend({

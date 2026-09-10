@@ -82,15 +82,31 @@ export function createOperationalReportCsv(
       data.summary.openTickets,
     ],
     [
-      "Overdue tickets",
+      "SLA-breached tickets",
       data.summary.overdueTickets,
     ],
     [
-      "SLA compliance rate",
+      "Overall SLA compliance rate",
       data.summary.slaComplianceRate ===
       null
         ? "Not available"
         : `${data.summary.slaComplianceRate}%`,
+    ],
+    [
+      "First response SLA compliance rate",
+      data.summary
+        .firstResponseSlaComplianceRate ===
+      null
+        ? "Not available"
+        : `${data.summary.firstResponseSlaComplianceRate}%`,
+    ],
+    [
+      "Resolution SLA compliance rate",
+      data.summary
+        .resolutionSlaComplianceRate ===
+      null
+        ? "Not available"
+        : `${data.summary.resolutionSlaComplianceRate}%`,
     ],
     [
       "Mean resolution hours",
@@ -159,7 +175,7 @@ export function createOperationalReportCsv(
       "Role",
       "Open tickets",
       "Urgent tickets",
-      "Overdue tickets",
+      "SLA-breached tickets",
     ],
     ...data.technicianWorkload.map(
       (member): CsvValue[] => [

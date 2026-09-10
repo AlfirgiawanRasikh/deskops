@@ -1,3 +1,5 @@
+import type { TicketSlaTone } from "@/features/tickets/utils/ticket-sla";
+
 export const ticketWorkspaceStatusValues = [
   "ALL",
   "OPEN",
@@ -43,12 +45,6 @@ export type TicketWorkspaceQuery = {
   page: number;
 };
 
-export type TicketWorkspaceSlaState =
-  | "danger"
-  | "warning"
-  | "neutral"
-  | "complete";
-
 export type TicketWorkspaceRecord = {
   databaseId: string;
   reference: string;
@@ -67,8 +63,10 @@ export type TicketWorkspaceRecord = {
   requesterName: string;
   requesterDepartment: string;
   assigneeName: string;
-  slaLabel: string;
-  slaState: TicketWorkspaceSlaState;
+  slaStatus: string;
+  slaTiming: string;
+  slaPhase: string;
+  slaState: TicketSlaTone;
   updatedAt: string;
 };
 

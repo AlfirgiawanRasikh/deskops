@@ -1,3 +1,5 @@
+import type { TicketSlaTone } from "@/features/tickets/utils/ticket-sla";
+
 export type TicketCommentVisibility =
   | "PUBLIC"
   | "INTERNAL";
@@ -22,6 +24,16 @@ export type TicketDetailAssigneeOption = {
   label: string;
 };
 
+export type TicketDetailSlaObjective = {
+  label: string;
+  status: string;
+  timing: string;
+  dueAt: string | null;
+  completedAt: string | null;
+  progress: number;
+  tone: TicketSlaTone;
+};
+
 export type TicketDetailData = {
   databaseId: string;
   displayId: string;
@@ -44,6 +56,15 @@ export type TicketDetailData = {
     email: string;
   } | null;
   assigneeOptions: TicketDetailAssigneeOption[];
+  sla: {
+    status: string;
+    phase: string;
+    timing: string;
+    progress: number;
+    tone: TicketSlaTone;
+    firstResponse: TicketDetailSlaObjective;
+    resolution: TicketDetailSlaObjective;
+  };
   asset: {
     label: string;
     serialNumber: string | null;

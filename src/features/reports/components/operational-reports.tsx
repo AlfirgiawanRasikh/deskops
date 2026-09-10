@@ -45,6 +45,14 @@ function formatDuration(
   return `${days.toFixed(1)}d`;
 }
 
+function formatComplianceRate(
+  value: number | null,
+) {
+  return value === null
+    ? "—"
+    : `${value}%`;
+}
+
 function SummaryCard({
   label,
   value,
@@ -334,7 +342,7 @@ function WorkloadTable({
                   Urgent
                 </th>
                 <th className="px-4 py-2.5 text-right">
-                  Overdue
+                  SLA breached
                 </th>
               </tr>
             </thead>
@@ -511,9 +519,9 @@ export function OperationalReports({
         />
 
         <SummaryCard
-          description="Past their resolution target"
+          description="Missed an active SLA target"
           icon={TriangleAlert}
-          label="Overdue"
+          label="SLA breached"
           tone={
             data.summary.overdueTickets > 0
               ? "danger"
@@ -525,16 +533,26 @@ export function OperationalReports({
         />
 
         <SummaryCard
-          description="Resolved tickets with a target"
+          description={`${formatComplianceRate(
+            data.summary
+              .firstResponseSlaComplianceRate,
+          )} response · ${formatComplianceRate(
+            data.summary
+              .resolutionSlaComplianceRate,
+          )} resolution`}
           icon={ShieldCheck}
           label="SLA compliance"
-          tone="success"
-          value={
-            data.summary
-              .slaComplianceRate === null
-              ? "—"
-              : `${data.summary.slaComplianceRate}%`
+          tone={
+            data.summary.slaComplianceRate !==
+              null &&
+            data.summary.slaComplianceRate <
+              80
+              ? "danger"
+              : "success"
           }
+          value={formatComplianceRate(
+            data.summary.slaComplianceRate,
+          )}
         />
 
         <SummaryCard

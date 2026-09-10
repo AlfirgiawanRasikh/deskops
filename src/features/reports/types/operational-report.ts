@@ -9,6 +9,12 @@ export type ReportSummary = {
   openTickets: number;
   overdueTickets: number;
   slaComplianceRate: number | null;
+  firstResponseSlaComplianceRate:
+    | number
+    | null;
+  resolutionSlaComplianceRate:
+    | number
+    | null;
   meanResolutionHours: number | null;
 };
 

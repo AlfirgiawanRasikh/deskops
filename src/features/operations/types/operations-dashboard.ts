@@ -1,3 +1,5 @@
+import type { TicketSlaTone } from "@/features/tickets/utils/ticket-sla";
+
 export type TicketPriority =
   | "Urgent"
   | "High"
@@ -26,7 +28,11 @@ export type TicketRecord = {
   assignee: string;
   assigneeShort: string;
   mine: boolean;
-  sla: string;
+  slaStatus: string;
+  slaTiming: string;
+  slaPhase: string;
+  slaState: TicketSlaTone;
+  slaProgress: number;
   summary: string;
   asset: string;
   category: string;

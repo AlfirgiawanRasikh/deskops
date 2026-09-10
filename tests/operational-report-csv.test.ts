@@ -18,6 +18,8 @@ function createReportData(): OperationalReportData {
       openTickets: 3,
       overdueTickets: 1,
       slaComplianceRate: 80,
+      firstResponseSlaComplianceRate: 90,
+      resolutionSlaComplianceRate: 70,
       meanResolutionHours: 12.5,
     },
     ticketTrend: [
@@ -95,7 +97,15 @@ test("creates a complete operational report CSV", () => {
   );
   assert.match(
     csv,
-    /"SLA compliance rate","80%"/,
+    /"Overall SLA compliance rate","80%"/,
+  );
+  assert.match(
+    csv,
+    /"First response SLA compliance rate","90%"/,
+  );
+  assert.match(
+    csv,
+    /"Resolution SLA compliance rate","70%"/,
   );
   assert.match(
     csv,

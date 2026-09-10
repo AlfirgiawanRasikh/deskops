@@ -14,6 +14,7 @@ import type {
   TicketRecord,
   TicketStatus,
 } from "@/features/operations/types/operations-dashboard";
+import { getTicketSlaSnapshot } from "@/features/tickets/utils/ticket-sla";
 import { prisma } from "@/lib/prisma";
 
 function mapPriority(
@@ -136,38 +137,6 @@ function formatRelativeTime(
   );
 }
 
-function formatSla(
-  dueAt: Date | null,
-  now: Date,
-) {
-  if (!dueAt) {
-    return "No target";
-  }
-
-  const remainingMinutes = Math.ceil(
-    (dueAt.getTime() - now.getTime()) /
-      60_000,
-  );
-
-  if (remainingMinutes <= 0) {
-    return "Breached";
-  }
-
-  if (remainingMinutes < 60) {
-    return `${remainingMinutes}m`;
-  }
-
-  if (remainingMinutes < 1440) {
-    return `${Math.ceil(
-      remainingMinutes / 60,
-    )}h`;
-  }
-
-  return `${Math.ceil(
-    remainingMinutes / 1440,
-  )}d`;
-}
-
 function formatEvent(event: {
   action: string;
   fromValue: string | null;
@@ -272,7 +241,11 @@ export async function getOperationsDashboardData(): Promise<OperationsDashboardD
         status: true,
         category: true,
         assigneeId: true,
+        firstResponseDueAt: true,
+        firstRespondedAt: true,
         resolutionDueAt: true,
+        resolvedAt: true,
+        closedAt: true,
         createdAt: true,
         requester: {
           select: {
@@ -448,6 +421,22 @@ export async function getOperationsDashboardData(): Promise<OperationsDashboardD
 
   const dashboardTickets: TicketRecord[] =
     tickets.map((ticket) => {
+      const sla =
+        getTicketSlaSnapshot({
+          status: ticket.status,
+          createdAt: ticket.createdAt,
+          firstResponseDueAt:
+            ticket.firstResponseDueAt,
+          firstRespondedAt:
+            ticket.firstRespondedAt,
+          resolutionDueAt:
+            ticket.resolutionDueAt,
+          resolvedAt:
+            ticket.resolvedAt,
+          closedAt: ticket.closedAt,
+          now,
+        });
+
       const latestComment =
         ticket.comments[0];
 
@@ -508,10 +497,14 @@ export async function getOperationsDashboardData(): Promise<OperationsDashboardD
             .split(" ")[0] ?? "-",
         mine:
           ticket.assigneeId === userId,
-        sla: formatSla(
-          ticket.resolutionDueAt,
-          now,
-        ),
+        slaStatus:
+          sla.statusLabel,
+        slaTiming:
+          sla.timingLabel,
+        slaPhase: sla.phaseLabel,
+        slaState: sla.tone,
+        slaProgress:
+          sla.progress,
         summary: ticket.description,
         asset: ticket.asset
           ? `${ticket.asset.assetTag} - ${
@@ -554,6 +547,18 @@ export async function getOperationsDashboardData(): Promise<OperationsDashboardD
         ticket.priority ===
           "URGENT" ||
         ticket.priority === "HIGH",
+    ).length;
+
+  const slaBreachedCount =
+    dashboardTickets.filter(
+      (ticket) =>
+        ticket.slaState === "danger",
+    ).length;
+
+  const slaAtRiskCount =
+    dashboardTickets.filter(
+      (ticket) =>
+        ticket.slaState === "warning",
     ).length;
 
   const dateLabel =
@@ -644,6 +649,13 @@ export async function getOperationsDashboardData(): Promise<OperationsDashboardD
           highPriorityCount,
         ),
         note: `${urgentCount} urgent`,
+      },
+      {
+        label: "SLA breached",
+        value: String(
+          slaBreachedCount,
+        ),
+        note: `${slaAtRiskCount} at risk`,
       },
       {
         label: canReadAllAssets

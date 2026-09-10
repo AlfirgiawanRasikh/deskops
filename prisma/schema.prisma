@@ -260,6 +260,7 @@ model Ticket {
   assetId     String?
 
   firstResponseDueAt DateTime? @db.Timestamptz(3)
+  firstRespondedAt    DateTime? @db.Timestamptz(3)
   resolutionDueAt    DateTime? @db.Timestamptz(3)
   resolvedAt         DateTime? @db.Timestamptz(3)
   closedAt           DateTime? @db.Timestamptz(3)
@@ -282,6 +283,7 @@ model Ticket {
   @@index([assigneeId, status])
   @@index([assetId])
   @@index([createdAt])
+  @@index([organizationId, firstRespondedAt])
 }
 
 model TicketComment {

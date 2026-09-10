@@ -35,6 +35,7 @@ import {
 } from "@/features/tickets/schemas/ticket-actions";
 import { defaultServiceLevelPolicies } from "@/features/settings/constants/service-level-policies";
 import type { TicketActionResult } from "@/features/tickets/types/ticket-actions";
+import { shouldRecordFirstResponse } from "@/features/tickets/utils/ticket-sla";
 import { prisma } from "@/lib/prisma";
 
 const MAX_TRANSACTION_ATTEMPTS = 3;
@@ -1001,6 +1002,7 @@ export async function addTicketReplyAction(
               title: true,
               requesterId: true,
               assigneeId: true,
+              firstRespondedAt: true,
             },
           });
 
@@ -1010,6 +1012,9 @@ export async function addTicketReplyAction(
           );
         }
 
+        const replyCreatedAt =
+          new Date();
+
         const comment =
           await transaction.ticketComment.create({
             data: {
@@ -1018,11 +1023,42 @@ export async function addTicketReplyAction(
                 actor.actorId,
               body: input.body,
               visibility: "PUBLIC",
+              createdAt:
+                replyCreatedAt,
             },
             select: {
               id: true,
             },
           });
+
+        const recordsFirstResponse =
+          shouldRecordFirstResponse({
+            actorRole: actor.role,
+            actorId: actor.actorId,
+            requesterId:
+              ticket.requesterId,
+            firstRespondedAt:
+              ticket.firstRespondedAt,
+          });
+
+        const firstResponseUpdate =
+          recordsFirstResponse
+            ? await transaction.ticket.updateMany(
+                {
+                  where: {
+                    id: ticket.id,
+                    organizationId:
+                      actor.organizationId,
+                    firstRespondedAt:
+                      null,
+                  },
+                  data: {
+                    firstRespondedAt:
+                      replyCreatedAt,
+                  },
+                },
+              )
+            : null;
 
         await transaction.ticketEvent.create({
           data: {
@@ -1036,6 +1072,9 @@ export async function addTicketReplyAction(
                 comment.id,
               source:
                 "ticket-conversation",
+              firstResponseRecorded:
+                firstResponseUpdate?.count ===
+                1,
             },
           },
         });
