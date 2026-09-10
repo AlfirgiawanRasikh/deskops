@@ -1,4 +1,5 @@
 import type { TicketSlaTone } from "@/features/tickets/utils/ticket-sla";
+import type { KnowledgeArticleSuggestion } from "@/features/knowledge/types/knowledge-base";
 
 export type TicketPriority =
   | "Urgent"
@@ -68,4 +69,5 @@ export type OperationsDashboardData = {
   requesterOptions: SelectOption[];
   assetOptions: SelectOption[];
   assigneeOptions: SelectOption[];
+  knowledgeSuggestions: KnowledgeArticleSuggestion[];
 };

@@ -12,6 +12,7 @@ import type {
 } from "@/features/audit/types/audit-log";
 import {
   formatAssetAuditEvent,
+  formatKnowledgeAuditEvent,
   formatMembershipAuditEvent,
   formatTicketAuditEvent,
   formatWorkspaceAuditEvent,
@@ -316,6 +317,60 @@ function createMembershipEventWhere({
   };
 }
 
+function createKnowledgeEventWhere({
+  organizationId,
+  rangeStart,
+  query,
+}: {
+  organizationId: string;
+  rangeStart: Date;
+  query: AuditLogQuery;
+}): Prisma.KnowledgeArticleEventWhereInput {
+  return {
+    article: {
+      organizationId,
+    },
+    createdAt: {
+      gte: rangeStart,
+    },
+    ...createActorWhere(
+      query.actorId,
+    ),
+    ...(query.query
+      ? {
+          OR: [
+            ...actionSearch(
+              query.query,
+            ),
+            actorSearch(query.query),
+            {
+              article: {
+                is: {
+                  OR: [
+                    {
+                      title: {
+                        contains:
+                          query.query,
+                        mode: "insensitive",
+                      },
+                    },
+                    {
+                      category: {
+                        contains:
+                          query.query,
+                        mode: "insensitive",
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        }
+      : {}),
+  };
+}
+
 function createWorkspaceEventWhere({
   organizationId,
   rangeStart,
@@ -429,6 +484,13 @@ export async function getAuditLogData(
       rangeStart,
       query,
     });
+  const knowledgeWhere =
+    createKnowledgeEventWhere({
+      organizationId:
+        organization.id,
+      rangeStart,
+      query,
+    });
   const workspaceWhere =
     createWorkspaceEventWhere({
       organizationId:
@@ -443,6 +505,11 @@ export async function getAuditLogData(
     includesCategory(query, "ASSET");
   const includeMembers =
     includesCategory(query, "MEMBER");
+  const includeKnowledge =
+    includesCategory(
+      query,
+      "KNOWLEDGE",
+    );
   const includeWorkspace =
     includesCategory(
       query,
@@ -452,6 +519,7 @@ export async function getAuditLogData(
   const [
     ticketCount,
     assetCount,
+    knowledgeCount,
     memberCount,
     workspaceCount,
     actors,
@@ -464,6 +532,11 @@ export async function getAuditLogData(
     includeAssets
       ? prisma.assetEvent.count({
           where: assetWhere,
+        })
+      : 0,
+    includeKnowledge
+      ? prisma.knowledgeArticleEvent.count({
+          where: knowledgeWhere,
         })
       : 0,
     includeMembers
@@ -493,6 +566,16 @@ export async function getAuditLogData(
             assetEvents: {
               some: {
                 asset: {
+                  organizationId:
+                    organization.id,
+                },
+              },
+            },
+          },
+          {
+            knowledgeArticleEvents: {
+              some: {
+                article: {
                   organizationId:
                     organization.id,
                 },
@@ -533,6 +616,7 @@ export async function getAuditLogData(
   const totalItems =
     ticketCount +
     assetCount +
+    knowledgeCount +
     memberCount +
     workspaceCount;
   const pageSize = Math.min(
@@ -563,6 +647,7 @@ export async function getAuditLogData(
   const [
     ticketEvents,
     assetEvents,
+    knowledgeEvents,
     membershipEvents,
     workspaceEvents,
   ] = await Promise.all([
@@ -616,6 +701,33 @@ export async function getAuditLogData(
                 id: true,
                 assetTag: true,
                 name: true,
+              },
+            },
+          },
+        })
+      : [],
+    includeKnowledge
+      ? prisma.knowledgeArticleEvent.findMany({
+          where: knowledgeWhere,
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: takePerCategory,
+          select: {
+            id: true,
+            action: true,
+            fromValue: true,
+            toValue: true,
+            metadata: true,
+            createdAt: true,
+            actor: {
+              select: actorSelect,
+            },
+            article: {
+              select: {
+                id: true,
+                title: true,
+                category: true,
               },
             },
           },
@@ -688,6 +800,12 @@ export async function getAuditLogData(
     ),
     ...assetEvents.map((event) =>
       formatAssetAuditEvent(
+        event,
+        organization.timezone,
+      ),
+    ),
+    ...knowledgeEvents.map((event) =>
+      formatKnowledgeAuditEvent(
         event,
         organization.timezone,
       ),
@@ -780,6 +898,12 @@ export async function getAuditLogData(
         value: assetCount,
         description:
           "Lifecycle and ownership changes",
+      },
+      {
+        label: "Knowledge events",
+        value: knowledgeCount,
+        description:
+          "Draft, content, and publishing changes",
       },
       {
         label: "Administrative",

@@ -1,6 +1,7 @@
 import {
   ChevronLeft,
   ChevronRight,
+  BookOpenText,
   Download,
   FileClock,
   Laptop,
@@ -25,6 +26,8 @@ const categoryClasses: Record<
     "border-[#cfdcf2] bg-[#f2f6fc] text-[#49627d]",
   ASSET:
     "border-[#cde2d5] bg-[#f2f8f4] text-[#3f6f50]",
+  KNOWLEDGE:
+    "border-[#cfdcf2] bg-[#f2f6fc] text-[#405f80]",
   MEMBER:
     "border-[#e4d9c5] bg-[#faf7f1] text-[#755d37]",
   WORKSPACE:
@@ -43,6 +46,10 @@ const categoryOptions = [
   {
     value: "ASSET",
     label: "Assets",
+  },
+  {
+    value: "KNOWLEDGE",
+    label: "Knowledge",
   },
   {
     value: "MEMBER",
@@ -73,6 +80,7 @@ const metricIcons = [
   FileClock,
   Ticket,
   Laptop,
+  BookOpenText,
   UserRoundCog,
 ] as const;
 
@@ -156,7 +164,7 @@ export function AuditLog({
             Audit log
           </h1>
           <p className="mt-1.5 max-w-[760px] text-[13px] leading-5 text-muted">
-            Review security-relevant changes across tickets, assets, members, and workspace configuration.
+            Review security-relevant changes across tickets, assets, knowledge, members, and workspace configuration.
           </p>
         </div>
 
@@ -175,7 +183,7 @@ export function AuditLog({
         </Link>
       </header>
 
-      <section className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {data.metrics.map(
           (metric, index) => {
             const Icon =

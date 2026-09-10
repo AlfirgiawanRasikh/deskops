@@ -60,6 +60,9 @@ export default async function Home() {
         dateLabel={data.dateLabel}
         initialMetrics={data.metrics}
         initialTickets={data.tickets}
+        knowledgeSuggestions={
+          data.knowledgeSuggestions
+        }
         organizationName={
           data.organizationName
         }
