@@ -7,6 +7,8 @@ import {
 import {
   canAddInternalTicketNotes,
   canAssignTickets,
+  canChangeTicketAssignee,
+  canClaimUnassignedTickets,
   canCreateTicketForOtherMembers,
   canCreateTickets,
   canReplyToOrganizationTicket,
@@ -56,7 +58,7 @@ describe("workspace role policy", () => {
       );
       assert.equal(
         canAssignTickets(role),
-        true,
+        role !== "TECHNICIAN",
       );
       assert.equal(
         canReplyToOrganizationTicket(role),
@@ -157,6 +159,49 @@ describe("workspace role policy", () => {
         "EMPLOYEE",
         "ACTIVE",
       ),
+      false,
+    );
+  });
+
+  test("technicians only claim unassigned tickets for themselves", () => {
+    assert.equal(
+      canClaimUnassignedTickets(
+        "TECHNICIAN",
+      ),
+      true,
+    );
+    assert.equal(
+      canClaimUnassignedTickets(
+        "MANAGER",
+      ),
+      false,
+    );
+    assert.equal(
+      canChangeTicketAssignee({
+        role: "TECHNICIAN",
+        actorId: "technician-a",
+        currentAssigneeId: null,
+        nextAssigneeId: "technician-a",
+      }),
+      true,
+    );
+    assert.equal(
+      canChangeTicketAssignee({
+        role: "TECHNICIAN",
+        actorId: "technician-a",
+        currentAssigneeId: null,
+        nextAssigneeId: "technician-b",
+      }),
+      false,
+    );
+    assert.equal(
+      canChangeTicketAssignee({
+        role: "TECHNICIAN",
+        actorId: "technician-a",
+        currentAssigneeId:
+          "technician-b",
+        nextAssigneeId: "technician-a",
+      }),
       false,
     );
   });

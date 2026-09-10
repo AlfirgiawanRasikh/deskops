@@ -17,6 +17,11 @@ export type TicketDetailActivity = {
   createdAt: string;
 };
 
+export type TicketDetailAssigneeOption = {
+  value: string;
+  label: string;
+};
+
 export type TicketDetailData = {
   databaseId: string;
   displayId: string;
@@ -34,9 +39,11 @@ export type TicketDetailData = {
     department: string;
   };
   assignee: {
+    id: string;
     name: string;
     email: string;
   } | null;
+  assigneeOptions: TicketDetailAssigneeOption[];
   asset: {
     label: string;
     serialNumber: string | null;

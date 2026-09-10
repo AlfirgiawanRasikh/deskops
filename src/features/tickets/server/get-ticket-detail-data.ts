@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  canAssignTickets,
   canViewInternalTicketComments,
   getAuthorizedWorkspace,
   getTicketReadScope,
@@ -121,6 +122,7 @@ export async function getTicketDetailData(
         },
         assignee: {
           select: {
+            id: true,
             name: true,
             email: true,
           },
@@ -190,6 +192,32 @@ export async function getTicketDetailData(
   const timeZone =
     workspace.organization.timezone;
 
+  const assignableMemberships =
+    canAssignTickets(role)
+      ? await prisma.membership.findMany({
+          where: {
+            organizationId,
+            status: "ACTIVE",
+            role: "TECHNICIAN",
+          },
+          orderBy: {
+            user: {
+              name: "asc",
+            },
+          },
+          select: {
+            department: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        })
+      : [];
+
   const prefix =
     ticket.type === "INCIDENT"
       ? "INC"
@@ -225,10 +253,21 @@ export async function getTicketDetailData(
     },
     assignee: ticket.assignee
       ? {
+          id: ticket.assignee.id,
           name: ticket.assignee.name,
           email: ticket.assignee.email,
         }
       : null,
+    assigneeOptions:
+      assignableMemberships.map(
+        (membership) => ({
+          value: membership.user.id,
+          label: `${membership.user.name} - ${
+            membership.department ??
+            membership.user.email
+          }`,
+        }),
+      ),
     asset: ticket.asset
       ? {
           label: `${ticket.asset.assetTag} - ${

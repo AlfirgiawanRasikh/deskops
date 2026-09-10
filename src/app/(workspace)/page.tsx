@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/layout/app-shell";
 import {
   canAssignTickets,
+  canClaimUnassignedTickets,
   canCreateTicketForOtherMembers,
   canUpdateTicketStatus,
   canViewOrganizationTickets,
@@ -39,6 +40,10 @@ export default async function Home() {
         capabilities={{
           canAssignTickets:
             canAssignTickets(role),
+          canClaimUnassignedTickets:
+            canClaimUnassignedTickets(
+              role,
+            ),
           canSelectOtherRequesters:
             canCreateTicketForOtherMembers(
               role,
@@ -49,6 +54,8 @@ export default async function Home() {
             canViewOrganizationTickets(
               role,
             ),
+          currentUserId:
+            workspace.user.id,
         }}
         dateLabel={data.dateLabel}
         initialMetrics={data.metrics}

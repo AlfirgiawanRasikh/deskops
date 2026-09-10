@@ -10,11 +10,15 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
-import { useState } from "react";
+import {
+  useState,
+  useTransition,
+} from "react";
 
 import {
   addTicketInternalNoteAction,
   addTicketReplyAction,
+  updateTicketAssigneeAction,
 } from "@/features/tickets/server/ticket-actions";
 import type { TicketDetailData } from "@/features/tickets/types/ticket-detail";
 
@@ -30,11 +34,17 @@ type Notice = {
 export function TicketDetailView({
   ticket,
   canAddInternalNotes,
+  canAssignTickets,
+  canClaimUnassignedTickets,
+  currentUserId,
   backHref,
   backLabel,
 }: {
   ticket: TicketDetailData;
   canAddInternalNotes: boolean;
+  canAssignTickets: boolean;
+  canClaimUnassignedTickets: boolean;
+  currentUserId: string;
   backHref: string;
   backLabel: string;
 }) {
@@ -48,6 +58,71 @@ export function TicketDetailView({
 
   const [notice, setNotice] =
     useState<Notice | null>(null);
+
+  const [assignmentNotice, setAssignmentNotice] =
+    useState<Notice | null>(null);
+
+  const [selectedAssigneeId, setSelectedAssigneeId] =
+    useState(ticket.assignee?.id ?? "");
+
+  const [assignmentPending, startAssignmentTransition] =
+    useTransition();
+
+  function updateAssignee(
+    assigneeId: string,
+  ) {
+    if (
+      (!canAssignTickets &&
+        !canClaimUnassignedTickets) ||
+      assignmentPending
+    ) {
+      return;
+    }
+
+    const previousAssigneeId =
+      ticket.assignee?.id ?? "";
+
+    setSelectedAssigneeId(assigneeId);
+    setAssignmentNotice(null);
+
+    startAssignmentTransition(
+      async () => {
+        try {
+          const result =
+            await updateTicketAssigneeAction({
+              ticketId:
+                ticket.databaseId,
+              assigneeId:
+                assigneeId || null,
+            });
+
+          setAssignmentNotice({
+            tone: result.success
+              ? "success"
+              : "error",
+            message: result.message,
+          });
+
+          if (result.success) {
+            router.refresh();
+          } else {
+            setSelectedAssigneeId(
+              previousAssigneeId,
+            );
+          }
+        } catch {
+          setSelectedAssigneeId(
+            previousAssigneeId,
+          );
+          setAssignmentNotice({
+            tone: "error",
+            message:
+              "The assignee could not be saved. Check the connection and try again.",
+          });
+        }
+      },
+    );
+  }
 
   async function submitMessage(
     event: FormEvent<HTMLFormElement>,
@@ -357,13 +432,77 @@ export function TicketDetailView({
                 label="Requester"
                 value={`${ticket.requester.name} - ${ticket.requester.department}`}
               />
-              <DetailRow
-                label="Assignee"
-                value={
-                  ticket.assignee?.name ??
-                  "Unassigned"
-                }
-              />
+              {canAssignTickets ? (
+                <div className="grid grid-cols-[76px_minmax(0,1fr)] gap-2">
+                  <dt className="self-center text-muted">
+                    Assignee
+                  </dt>
+                  <dd>
+                    <select
+                      aria-label="Ticket assignee"
+                      className="h-8 w-full rounded-[5px] border border-line bg-white px-2 text-[11px] font-medium text-ink outline-none focus:border-accent disabled:cursor-wait disabled:opacity-70"
+                      disabled={
+                        assignmentPending
+                      }
+                      onChange={(event) =>
+                        updateAssignee(
+                          event.target.value,
+                        )
+                      }
+                      value={
+                        selectedAssigneeId
+                      }
+                    >
+                      <option value="">
+                        Unassigned
+                      </option>
+                      {ticket.assigneeOptions.map(
+                        (option) => (
+                          <option
+                            key={option.value}
+                            value={option.value}
+                          >
+                            {option.label}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  </dd>
+                </div>
+              ) : canClaimUnassignedTickets &&
+                !ticket.assignee ? (
+                <div className="grid grid-cols-[76px_minmax(0,1fr)] gap-2">
+                  <dt className="self-center text-muted">
+                    Assignee
+                  </dt>
+                  <dd>
+                    <button
+                      className="inline-flex h-8 w-full items-center justify-center rounded-[5px] border border-line bg-white px-2 text-[11px] font-medium text-ink hover:bg-canvas disabled:cursor-wait disabled:opacity-70"
+                      disabled={
+                        assignmentPending
+                      }
+                      onClick={() =>
+                        updateAssignee(
+                          currentUserId,
+                        )
+                      }
+                      type="button"
+                    >
+                      {assignmentPending
+                        ? "Assigning..."
+                        : "Assign to me"}
+                    </button>
+                  </dd>
+                </div>
+              ) : (
+                <DetailRow
+                  label="Assignee"
+                  value={
+                    ticket.assignee?.name ??
+                    "Unassigned"
+                  }
+                />
+              )}
               <DetailRow
                 label="Category"
                 value={ticket.category}
@@ -384,6 +523,25 @@ export function TicketDetailView({
                 value={ticket.updatedAt}
               />
             </dl>
+
+            {assignmentNotice ? (
+              <p
+                className={`mx-4 mb-3 border-l-2 px-2.5 py-1.5 text-[10px] leading-4 ${
+                  assignmentNotice.tone ===
+                  "error"
+                    ? "border-danger bg-[#fff7f6] text-danger"
+                    : "border-success bg-[#f3faf6] text-[#277a4b]"
+                }`}
+                role={
+                  assignmentNotice.tone ===
+                  "error"
+                    ? "alert"
+                    : "status"
+                }
+              >
+                {assignmentNotice.message}
+              </p>
+            ) : null}
           </section>
 
           <section className="rounded-[6px] border border-line bg-surface">

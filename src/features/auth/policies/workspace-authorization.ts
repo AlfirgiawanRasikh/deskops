@@ -26,6 +26,13 @@ const organizationOperationsRoles =
 const ticketCreationRoles =
   new Set<WorkspaceRole>(workspaceRoles);
 
+const ticketAssignmentManagerRoles =
+  new Set<WorkspaceRole>([
+    "OWNER",
+    "ADMIN",
+    "MANAGER",
+  ]);
+
 export function isWorkspaceRole(
   role: string,
 ): role is WorkspaceRole {
@@ -74,7 +81,35 @@ export function canUpdateTicketStatus(
 export function canAssignTickets(
   role: WorkspaceRole,
 ) {
-  return organizationOperationsRoles.has(role);
+  return ticketAssignmentManagerRoles.has(role);
+}
+
+export function canClaimUnassignedTickets(
+  role: WorkspaceRole,
+) {
+  return role === "TECHNICIAN";
+}
+
+export function canChangeTicketAssignee({
+  role,
+  actorId,
+  currentAssigneeId,
+  nextAssigneeId,
+}: {
+  role: WorkspaceRole;
+  actorId: string;
+  currentAssigneeId: string | null;
+  nextAssigneeId: string | null;
+}) {
+  if (canAssignTickets(role)) {
+    return true;
+  }
+
+  return (
+    canClaimUnassignedTickets(role) &&
+    currentAssigneeId === null &&
+    nextAssigneeId === actorId
+  );
 }
 
 export function isAssignableTicketAssignee(

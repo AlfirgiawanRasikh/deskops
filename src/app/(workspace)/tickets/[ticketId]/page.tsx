@@ -1,7 +1,11 @@
 import { notFound } from "next/navigation";
 
 import { AppShell } from "@/components/layout/app-shell";
-import { canAddInternalTicketNotes } from "@/features/auth/server/authorization";
+import {
+  canAddInternalTicketNotes,
+  canAssignTickets,
+  canClaimUnassignedTickets,
+} from "@/features/auth/server/authorization";
 import { requireWorkspaceSession } from "@/features/auth/server/workspace-session";
 import { TicketDetailView } from "@/features/tickets/components/ticket-detail-view";
 import { getTicketDetailData } from "@/features/tickets/server/get-ticket-detail-data";
@@ -77,6 +81,17 @@ export default async function TicketDetailPage({
         backLabel={backLabel}
         canAddInternalNotes={
           canAddInternalTicketNotes(role)
+        }
+        canAssignTickets={
+          canAssignTickets(role)
+        }
+        canClaimUnassignedTickets={
+          canClaimUnassignedTickets(role)
+        }
+        currentUserId={workspace.user.id}
+        key={
+          ticket.assignee?.id ??
+          "unassigned"
         }
         ticket={ticket}
       />

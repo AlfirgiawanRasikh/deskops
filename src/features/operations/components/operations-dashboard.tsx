@@ -412,6 +412,8 @@ function ContextRail({
   ticket,
   assigneeOptions,
   canAssignTickets,
+  canClaimUnassignedTickets,
+  currentUserId,
   canUpdateStatus,
   assignmentPending,
   replyOpen,
@@ -426,6 +428,8 @@ function ContextRail({
   ticket: TicketRecord;
   assigneeOptions: SelectOption[];
   canAssignTickets: boolean;
+  canClaimUnassignedTickets: boolean;
+  currentUserId: string;
   canUpdateStatus: boolean;
   assignmentPending: boolean;
   replyOpen: boolean;
@@ -709,6 +713,22 @@ function ContextRail({
                   className="pointer-events-none absolute right-2 top-1/2 size-3 -translate-y-1/2 text-muted"
                 />
               </label>
+            ) : canClaimUnassignedTickets &&
+              !ticket.assigneeId ? (
+              <button
+                className="inline-flex h-8 w-full items-center justify-center rounded-[5px] border border-line bg-canvas px-2.5 text-[12px] font-medium text-ink hover:bg-white disabled:cursor-wait disabled:opacity-70"
+                disabled={assignmentPending}
+                onClick={() =>
+                  onAssigneeChange(
+                    currentUserId,
+                  )
+                }
+                type="button"
+              >
+                {assignmentPending
+                  ? "Assigning..."
+                  : "Assign to me"}
+              </button>
             ) : (
               <span className="block truncate">
                 {ticket.assignee}
@@ -934,9 +954,21 @@ export function OperationsDashboard({
     assigneeId: string,
   ) {
     if (
-      !capabilities.canAssignTickets ||
       !selectedTicket ||
       assignmentPending
+    ) {
+      return;
+    }
+
+    const canClaimSelectedTicket =
+      capabilities.canClaimUnassignedTickets &&
+      selectedTicket.assigneeId === null &&
+      assigneeId ===
+        capabilities.currentUserId;
+
+    if (
+      !capabilities.canAssignTickets &&
+      !canClaimSelectedTicket
     ) {
       return;
     }
@@ -1144,8 +1176,14 @@ export function OperationsDashboard({
             canAssignTickets={
               capabilities.canAssignTickets
             }
+            canClaimUnassignedTickets={
+              capabilities.canClaimUnassignedTickets
+            }
             canUpdateStatus={
               capabilities.canUpdateTicketStatus
+            }
+            currentUserId={
+              capabilities.currentUserId
             }
             mutationNotice={mutationNotice}
             onAssigneeChange={
