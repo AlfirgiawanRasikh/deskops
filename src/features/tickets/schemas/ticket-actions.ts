@@ -51,7 +51,6 @@ export const updateTicketStatusActionSchema = z.object({
     "Investigating",
     "In progress",
     "Waiting requester",
-    "Waiting approval",
     "Scheduled",
     "Resolved",
   ]),

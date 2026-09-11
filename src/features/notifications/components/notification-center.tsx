@@ -4,6 +4,7 @@ import {
   Bell,
   CheckCheck,
   CircleAlert,
+  ClipboardCheck,
   Inbox,
   LoaderCircle,
   MessageSquareText,
@@ -34,6 +35,10 @@ const notificationIconByKind = {
   TICKET_REPLY_ADDED: MessageSquareText,
   TICKET_INTERNAL_NOTE_ADDED:
     MessageSquareText,
+  TICKET_APPROVAL_REQUESTED:
+    ClipboardCheck,
+  TICKET_APPROVAL_DECIDED:
+    ClipboardCheck,
 } satisfies Record<
   NotificationKind,
   typeof Bell

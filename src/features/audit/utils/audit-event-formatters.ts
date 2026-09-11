@@ -254,6 +254,37 @@ function formatTicketAction(
         )}.`,
       };
 
+    case "APPROVAL_REQUESTED":
+      return {
+        action: "Approval requested",
+        summary: `Requested approval from ${
+          event.toValue ?? "an approver"
+        }. Ticket status: ${formatEnum(
+          event.fromValue,
+        )} → Waiting approval.`,
+      };
+
+    case "APPROVAL_DECIDED": {
+      const nextTicketStatus =
+        getString(
+          event.metadata,
+          "nextTicketStatus",
+        );
+      const approved =
+        event.toValue === "APPROVED";
+
+      return {
+        action: approved
+          ? "Service request approved"
+          : "Service request rejected",
+        summary: `Approval: Pending → ${formatEnum(
+          event.toValue,
+        )}. Ticket status: Waiting approval → ${formatEnum(
+          nextTicketStatus,
+        )}.`,
+      };
+    }
+
     case "COMMENT_ADDED": {
       const isInternal =
         event.toValue === "INTERNAL";

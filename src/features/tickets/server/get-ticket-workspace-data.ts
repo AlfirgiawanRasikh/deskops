@@ -3,6 +3,7 @@ import "server-only";
 import { notFound } from "next/navigation";
 
 import type { Prisma } from "@/generated/prisma/client";
+import { getPendingApprovalReadScope } from "@/features/approvals/policies/request-approval-authorization";
 import { getAuthorizedWorkspace } from "@/features/auth/server/authorization";
 import { getTicketWorkspaceScope } from "@/features/tickets/policies/ticket-workspace-authorization";
 import type {
@@ -399,6 +400,105 @@ export async function getTicketWorkspaceData({
       };
     });
 
+  const pendingApprovalScope =
+    view === "mine"
+      ? getPendingApprovalReadScope({
+          organizationId:
+            organization.id,
+          userId: workspace.user.id,
+          role,
+        })
+      : null;
+
+  const approvalInbox =
+    pendingApprovalScope
+      ? await (async () => {
+          const [approvals, totalItems] =
+            await prisma.$transaction([
+              prisma.ticketApproval.findMany({
+                where:
+                  pendingApprovalScope,
+                orderBy: {
+                  requestedAt: "asc",
+                },
+                take: 20,
+                select: {
+                  id: true,
+                  requestedAt: true,
+                  requestedBy: {
+                    select: {
+                      name: true,
+                    },
+                  },
+                  ticket: {
+                    select: {
+                      id: true,
+                      number: true,
+                      type: true,
+                      title: true,
+                      category: true,
+                      priority: true,
+                      requester: {
+                        select: {
+                          name: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              }),
+              prisma.ticketApproval.count({
+                where:
+                  pendingApprovalScope,
+              }),
+            ]);
+
+          return {
+            visible: true,
+            totalItems,
+            records: approvals.map(
+              (approval) => ({
+                approvalId: approval.id,
+                ticketId:
+                  approval.ticket.id,
+                reference: `${
+                  approval.ticket.type ===
+                  "INCIDENT"
+                    ? "INC"
+                    : "REQ"
+                }-${approval.ticket.number}`,
+                title:
+                  approval.ticket.title,
+                category:
+                  approval.ticket.category,
+                priority:
+                  approval.ticket.priority,
+                priorityLabel:
+                  formatPriority(
+                    approval.ticket
+                      .priority,
+                  ),
+                requesterName:
+                  approval.ticket
+                    .requester.name,
+                requestedByName:
+                  approval.requestedBy
+                    .name,
+                requestedAt:
+                  formatDateTime(
+                    approval.requestedAt,
+                    organization.timezone,
+                  ),
+              }),
+            ),
+          };
+        })()
+      : {
+          visible: false,
+          totalItems: 0,
+          records: [],
+        };
+
   const isEmployee =
     role === "EMPLOYEE";
 
@@ -436,6 +536,7 @@ export async function getTicketWorkspaceData({
       page,
     },
     records,
+    approvalInbox,
     metrics: [
       {
         label: "Total tickets",

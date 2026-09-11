@@ -58,7 +58,6 @@ const statusToDatabaseStatus = {
   Investigating: "TRIAGED",
   "In progress": "IN_PROGRESS",
   "Waiting requester": "WAITING_REQUESTER",
-  "Waiting approval": "WAITING_APPROVAL",
   Scheduled: "SCHEDULED",
   Resolved: "RESOLVED",
 } as const;
@@ -538,6 +537,15 @@ export async function updateTicketAssigneeAction(
                     name: true,
                   },
                 },
+                approvals: {
+                  where: {
+                    status: "PENDING",
+                  },
+                  select: {
+                    id: true,
+                  },
+                  take: 1,
+                },
               },
             });
 
@@ -602,6 +610,14 @@ export async function updateTicketAssigneeAction(
                 nextAssignee?.name ??
                 "Unassigned",
             };
+          }
+
+          if (
+            ticket.approvals.length > 0
+          ) {
+            throw new MutationError(
+              "Resolve the pending approval before changing the ticket assignee.",
+            );
           }
 
           if (
@@ -773,12 +789,29 @@ export async function updateTicketStatusAction(
                     name: true,
                   },
                 },
+                approvals: {
+                  where: {
+                    status: "PENDING",
+                  },
+                  select: {
+                    id: true,
+                  },
+                  take: 1,
+                },
               },
             });
 
           if (!ticket) {
             throw new MutationError(
               "The selected ticket could not be found.",
+            );
+          }
+
+          if (
+            ticket.approvals.length > 0
+          ) {
+            throw new MutationError(
+              "Resolve the pending approval before changing the ticket status.",
             );
           }
 

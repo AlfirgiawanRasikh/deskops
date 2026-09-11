@@ -1,6 +1,8 @@
 import {
+  ArrowUpRight,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   Filter,
   Inbox,
   Search,
@@ -291,6 +293,129 @@ export function TicketWorkspace({
           </div>
         ))}
       </section>
+
+      {data.approvalInbox.visible ? (
+        <section
+          aria-labelledby="pending-approvals-title"
+          className="mt-5 overflow-hidden rounded-[6px] border border-line bg-surface"
+        >
+          <div className="flex flex-col gap-2 border-b border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <ClipboardCheck
+                  aria-hidden="true"
+                  className="size-3.5 text-muted"
+                  strokeWidth={1.8}
+                />
+                <h2
+                  className="text-[12px] font-semibold text-ink"
+                  id="pending-approvals-title"
+                >
+                  Pending approvals
+                </h2>
+                <span className="rounded-full border border-[#ead7a6] bg-[#fffaf0] px-2 py-0.5 text-[9px] font-semibold text-warning tabular-nums">
+                  {data.approvalInbox.totalItems}
+                </span>
+              </div>
+              <p className="mt-1 text-[10px] leading-4 text-muted">
+                Service requests waiting for your decision, oldest first.
+              </p>
+            </div>
+
+            {data.approvalInbox.totalItems >
+            data.approvalInbox.records
+              .length ? (
+              <p className="text-[10px] text-muted">
+                Showing the oldest 20 requests
+              </p>
+            ) : null}
+          </div>
+
+          {data.approvalInbox.records.length >
+          0 ? (
+            <ol className="divide-y divide-line">
+              {data.approvalInbox.records.map(
+                (approval) => (
+                  <li
+                    className="group grid gap-3 px-4 py-3 hover:bg-[#fafbfc] sm:grid-cols-[96px_minmax(0,1fr)_180px_120px] sm:items-center"
+                    key={approval.approvalId}
+                  >
+                    <Link
+                      className="text-[11px] font-medium text-[#4c5563] hover:text-ink tabular-nums"
+                      href={createTicketDetailHref(
+                        approval.ticketId,
+                        returnTo,
+                      )}
+                    >
+                      {approval.reference}
+                    </Link>
+
+                    <div className="min-w-0">
+                      <Link
+                        className="block truncate text-[12px] font-medium text-ink"
+                        href={createTicketDetailHref(
+                          approval.ticketId,
+                          returnTo,
+                        )}
+                      >
+                        {approval.title}
+                      </Link>
+                      <p className="mt-1 truncate text-[10px] text-muted">
+                        {approval.requesterName} ·{" "}
+                        {approval.category}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p
+                        className={`text-[10px] font-medium ${priorityClasses[approval.priority]}`}
+                      >
+                        {approval.priorityLabel}
+                      </p>
+                      <p className="mt-1 truncate text-[10px] text-muted">
+                        Requested by {approval.requestedByName}
+                      </p>
+                    </div>
+
+                    <Link
+                      className="inline-flex items-center justify-between gap-2 text-[10px] text-muted hover:text-ink sm:justify-end"
+                      href={createTicketDetailHref(
+                        approval.ticketId,
+                        returnTo,
+                      )}
+                    >
+                      <span className="tabular-nums">
+                        {approval.requestedAt}
+                      </span>
+                      <ArrowUpRight
+                        aria-hidden="true"
+                        className="size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                        strokeWidth={1.8}
+                      />
+                    </Link>
+                  </li>
+                ),
+              )}
+            </ol>
+          ) : (
+            <div className="px-4 py-8 text-center">
+              <div className="mx-auto grid size-9 place-items-center rounded-full bg-canvas text-muted">
+                <ClipboardCheck
+                  aria-hidden="true"
+                  className="size-4"
+                  strokeWidth={1.8}
+                />
+              </div>
+              <p className="mt-3 text-[12px] font-medium text-ink">
+                No approval decisions waiting
+              </p>
+              <p className="mt-1 text-[10px] text-muted">
+                New requests assigned to you will appear here.
+              </p>
+            </div>
+          )}
+        </section>
+      ) : null}
 
       <section className="mt-5 overflow-hidden rounded-[6px] border border-line bg-surface">
         <form
