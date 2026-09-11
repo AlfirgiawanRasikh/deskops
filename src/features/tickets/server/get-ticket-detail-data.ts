@@ -6,6 +6,11 @@ import {
   getAuthorizedWorkspace,
   getTicketReadScope,
 } from "@/features/auth/server/authorization";
+import {
+  approvalApproverRoles,
+  canDecideTicketApproval,
+  canRequestTicketApproval,
+} from "@/features/approvals/policies/request-approval-authorization";
 import type { TicketDetailData } from "@/features/tickets/types/ticket-detail";
 import {
   getTicketSlaSnapshot,
@@ -70,6 +75,18 @@ function formatEvent(event: {
         ? `${actor} assigned the ticket to ${event.toValue}.`
         : `${actor} returned the ticket to the unassigned queue.`;
 
+    case "APPROVAL_REQUESTED":
+      return `${actor} requested approval from ${
+        event.toValue ?? "an approver"
+      }.`;
+
+    case "APPROVAL_DECIDED":
+      return `${actor} ${
+        event.toValue === "APPROVED"
+          ? "approved"
+          : "rejected"
+      } the service request.`;
+
     default:
       return `${actor} updated this ticket.`;
   }
@@ -116,6 +133,7 @@ export async function getTicketDetailData(
         closedAt: true,
         requester: {
           select: {
+            id: true,
             name: true,
             email: true,
             memberships: {
@@ -191,6 +209,34 @@ export async function getTicketDetailData(
             },
           },
         },
+        approvals: {
+          orderBy: {
+            requestedAt: "desc",
+          },
+          take: 10,
+          select: {
+            id: true,
+            status: true,
+            requestNote: true,
+            decisionNote: true,
+            requestedAt: true,
+            decidedAt: true,
+            requestedBy: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+            approver: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -216,6 +262,67 @@ export async function getTicketDetailData(
           },
           select: {
             department: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        })
+      : [];
+
+  const hasPendingApproval =
+    ticket.approvals.some(
+      (approval) =>
+        approval.status === "PENDING",
+    );
+
+  const approvalEligible =
+    ticket.type === "SERVICE_REQUEST";
+
+  const canRequestApproval =
+    approvalEligible &&
+    !hasPendingApproval &&
+    ticket.status !== "WAITING_APPROVAL" &&
+    ![
+      "RESOLVED",
+      "CLOSED",
+      "CANCELED",
+    ].includes(ticket.status) &&
+    canRequestTicketApproval({
+      role,
+      actorId: workspace.user.id,
+      assigneeId:
+        ticket.assignee?.id ?? null,
+    });
+
+  const approvalMemberships =
+    canRequestApproval
+      ? await prisma.membership.findMany({
+          where: {
+            organizationId,
+            status: "ACTIVE",
+            role: {
+              in: [
+                ...approvalApproverRoles,
+              ],
+            },
+            userId: {
+              notIn: [
+                workspace.user.id,
+                ticket.requester.id,
+              ],
+            },
+          },
+          orderBy: {
+            user: {
+              name: "asc",
+            },
+          },
+          select: {
+            role: true,
             user: {
               select: {
                 id: true,
@@ -307,6 +414,7 @@ export async function getTicketDetailData(
     displayId: `${prefix}-${ticket.number}`,
     requestType:
       formatEnumValue(ticket.type),
+    requestTypeCode: ticket.type,
     title: ticket.title,
     description: ticket.description,
     status: formatEnumValue(ticket.status),
@@ -347,6 +455,51 @@ export async function getTicketDetailData(
           }`,
         }),
       ),
+    approval: {
+      eligible: approvalEligible,
+      canRequest: canRequestApproval,
+      approverOptions:
+        approvalMemberships.map(
+          (membership) => ({
+            value: membership.user.id,
+            label: `${membership.user.name} - ${formatEnumValue(
+              membership.role,
+            )}`,
+          }),
+        ),
+      history: ticket.approvals.map(
+        (approval) => ({
+          id: approval.id,
+          status: approval.status,
+          requestNote:
+            approval.requestNote,
+          decisionNote:
+            approval.decisionNote,
+          requestedAt: formatDateTime(
+            approval.requestedAt,
+            timeZone,
+          ),
+          decidedAt: approval.decidedAt
+            ? formatDateTime(
+                approval.decidedAt,
+                timeZone,
+              )
+            : null,
+          requestedBy:
+            approval.requestedBy,
+          approver: approval.approver,
+          canDecide:
+            canDecideTicketApproval({
+              role,
+              actorId:
+                workspace.user.id,
+              approverId:
+                approval.approver.id,
+              status: approval.status,
+            }),
+        }),
+      ),
+    },
     sla: {
       status: sla.statusLabel,
       phase: sla.phaseLabel,

@@ -63,6 +63,14 @@ enum NotificationType {
   TICKET_STATUS_CHANGED
   TICKET_REPLY_ADDED
   TICKET_INTERNAL_NOTE_ADDED
+  TICKET_APPROVAL_REQUESTED
+  TICKET_APPROVAL_DECIDED
+}
+
+enum TicketApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum KnowledgeArticleStatus {
@@ -122,6 +130,8 @@ model User {
   sentNotifications         Notification[]          @relation("NotificationActor")
   authoredKnowledgeArticles KnowledgeArticle[]      @relation("KnowledgeArticleAuthor")
   knowledgeArticleEvents    KnowledgeArticleEvent[] @relation("KnowledgeArticleEventActor")
+  requestedTicketApprovals  TicketApproval[]        @relation("TicketApprovalRequester")
+  assignedTicketApprovals   TicketApproval[]        @relation("TicketApprovalApprover")
 }
 
 model ServiceLevelPolicy {
@@ -286,6 +296,7 @@ model Ticket {
   events   TicketEvent[]
 
   notifications Notification[]
+  approvals     TicketApproval[]
 
   @@unique([organizationId, number])
   @@index([organizationId, status, priority])
@@ -294,6 +305,26 @@ model Ticket {
   @@index([assetId])
   @@index([createdAt])
   @@index([organizationId, firstRespondedAt])
+}
+
+model TicketApproval {
+  id            String               @id @default(cuid())
+  ticketId      String
+  requestedById String
+  approverId    String
+  status        TicketApprovalStatus @default(PENDING)
+  requestNote   String?              @db.VarChar(500)
+  decisionNote  String?              @db.VarChar(500)
+  requestedAt   DateTime             @default(now()) @db.Timestamptz(3)
+  decidedAt     DateTime?            @db.Timestamptz(3)
+
+  ticket      Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  requestedBy User   @relation("TicketApprovalRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  approver    User   @relation("TicketApprovalApprover", fields: [approverId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, requestedAt])
+  @@index([approverId, status, requestedAt])
+  @@index([requestedById])
 }
 
 model TicketComment {

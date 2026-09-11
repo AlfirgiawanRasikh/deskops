@@ -3,7 +3,9 @@ export type NotificationKind =
   | "TICKET_ASSIGNED"
   | "TICKET_STATUS_CHANGED"
   | "TICKET_REPLY_ADDED"
-  | "TICKET_INTERNAL_NOTE_ADDED";
+  | "TICKET_INTERNAL_NOTE_ADDED"
+  | "TICKET_APPROVAL_REQUESTED"
+  | "TICKET_APPROVAL_DECIDED";
 
 export type NotificationCenterItem = {
   id: string;

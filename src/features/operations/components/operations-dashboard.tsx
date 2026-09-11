@@ -40,6 +40,10 @@ import type { TicketActionResult } from "@/features/tickets/types/ticket-actions
 
 type QueueView = "mine" | "all" | "unassigned";
 type PriorityFilter = "All" | TicketPriority;
+type MutableTicketStatus = Exclude<
+  TicketStatus,
+  "Waiting approval"
+>;
 
 type MutationNotice = {
   tone: "success" | "error";
@@ -84,13 +88,12 @@ const statusClasses: Record<
   Resolved: "bg-success",
 };
 
-const statusOptions: TicketStatus[] = [
+const statusOptions: MutableTicketStatus[] = [
   "Open",
   "Unassigned",
   "Investigating",
   "In progress",
   "Waiting requester",
-  "Waiting approval",
   "Scheduled",
   "Resolved",
 ];
@@ -455,7 +458,7 @@ function ContextRail({
     assigneeId: string,
   ) => void;
   onStatusChange: (
-    status: TicketStatus,
+    status: MutableTicketStatus,
   ) => void;
 }) {
   return (
@@ -497,15 +500,28 @@ function ContextRail({
 
               <select
                 className="h-8 w-full appearance-none rounded-[5px] border border-action bg-action px-3 pr-7 text-[12px] font-medium text-white outline-none focus:border-accent disabled:cursor-wait disabled:opacity-70"
-                disabled={statusPending}
+                disabled={
+                  statusPending ||
+                  ticket.status ===
+                    "Waiting approval"
+                }
                 onChange={(event) =>
                   onStatusChange(
                     event.target
-                      .value as TicketStatus,
+                      .value as MutableTicketStatus,
                   )
                 }
                 value={ticket.status}
               >
+                {ticket.status ===
+                "Waiting approval" ? (
+                  <option
+                    disabled
+                    value="Waiting approval"
+                  >
+                    Waiting approval
+                  </option>
+                ) : null}
                 {statusOptions.map((status) => (
                   <option
                     key={status}
@@ -700,7 +716,11 @@ function ContextRail({
 
                 <select
                   className="h-8 w-full appearance-none rounded-[5px] border border-line bg-canvas px-2.5 pr-7 text-[12px] font-medium text-ink outline-none hover:bg-white focus:border-accent disabled:cursor-wait disabled:opacity-70"
-                  disabled={assignmentPending}
+                  disabled={
+                    assignmentPending ||
+                    ticket.status ===
+                      "Waiting approval"
+                  }
                   onChange={(event) =>
                     onAssigneeChange(
                       event.target.value,
@@ -731,7 +751,9 @@ function ContextRail({
                 />
               </label>
             ) : canClaimUnassignedTickets &&
-              !ticket.assigneeId ? (
+              !ticket.assigneeId &&
+              ticket.status !==
+                "Waiting approval" ? (
               <button
                 className="inline-flex h-8 w-full items-center justify-center rounded-[5px] border border-line bg-canvas px-2.5 text-[12px] font-medium text-ink hover:bg-white disabled:cursor-wait disabled:opacity-70"
                 disabled={assignmentPending}
@@ -926,7 +948,7 @@ export function OperationsDashboard({
   }
 
   function updateStatus(
-    status: TicketStatus,
+    status: MutableTicketStatus,
   ) {
     if (
       !capabilities.canUpdateTicketStatus ||

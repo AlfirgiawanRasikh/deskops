@@ -1,4 +1,5 @@
 import type { TicketSlaTone } from "@/features/tickets/utils/ticket-sla";
+import type { TicketApprovalData } from "@/features/approvals/types/request-approval";
 
 export type TicketCommentVisibility =
   | "PUBLIC"
@@ -38,6 +39,7 @@ export type TicketDetailData = {
   databaseId: string;
   displayId: string;
   requestType: string;
+  requestTypeCode: "INCIDENT" | "SERVICE_REQUEST";
   title: string;
   description: string;
   status: string;
@@ -56,6 +58,7 @@ export type TicketDetailData = {
     email: string;
   } | null;
   assigneeOptions: TicketDetailAssigneeOption[];
+  approval: TicketApprovalData;
   sla: {
     status: string;
     phase: string;

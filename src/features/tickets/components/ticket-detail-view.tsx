@@ -15,6 +15,8 @@ import {
   useTransition,
 } from "react";
 
+import { TicketApprovalPanel } from "@/features/approvals/components/ticket-approval-panel";
+
 import {
   addTicketInternalNoteAction,
   addTicketReplyAction,
@@ -95,7 +97,8 @@ export function TicketDetailView({
     if (
       (!canAssignTickets &&
         !canClaimUnassignedTickets) ||
-      assignmentPending
+      assignmentPending ||
+      ticket.status === "Waiting approval"
     ) {
       return;
     }
@@ -488,6 +491,11 @@ export function TicketDetailView({
             </div>
           </section>
 
+          <TicketApprovalPanel
+            approval={ticket.approval}
+            ticketId={ticket.databaseId}
+          />
+
           <section className="rounded-[6px] border border-line bg-surface">
             <div className="border-b border-line px-4 py-3">
               <h2 className="text-[12px] font-semibold text-ink">
@@ -510,7 +518,9 @@ export function TicketDetailView({
                       aria-label="Ticket assignee"
                       className="h-8 w-full rounded-[5px] border border-line bg-white px-2 text-[11px] font-medium text-ink outline-none focus:border-accent disabled:cursor-wait disabled:opacity-70"
                       disabled={
-                        assignmentPending
+                        assignmentPending ||
+                        ticket.status ===
+                          "Waiting approval"
                       }
                       onChange={(event) =>
                         updateAssignee(
@@ -538,7 +548,9 @@ export function TicketDetailView({
                   </dd>
                 </div>
               ) : canClaimUnassignedTickets &&
-                !ticket.assignee ? (
+                !ticket.assignee &&
+                ticket.status !==
+                  "Waiting approval" ? (
                 <div className="grid grid-cols-[76px_minmax(0,1fr)] gap-2">
                   <dt className="self-center text-muted">
                     Assignee
@@ -591,6 +603,13 @@ export function TicketDetailView({
                 value={ticket.updatedAt}
               />
             </dl>
+
+            {ticket.status ===
+            "Waiting approval" ? (
+              <p className="mx-4 mb-3 text-[10px] leading-4 text-muted">
+                Assignment is locked until the approval is decided.
+              </p>
+            ) : null}
 
             {assignmentNotice ? (
               <p

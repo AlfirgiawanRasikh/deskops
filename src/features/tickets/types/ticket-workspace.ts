@@ -85,6 +85,28 @@ export type TicketWorkspacePagination = {
   lastItem: number;
 };
 
+export type TicketWorkspacePendingApproval = {
+  approvalId: string;
+  ticketId: string;
+  reference: string;
+  title: string;
+  category: string;
+  priority: Exclude<
+    TicketWorkspacePriorityFilter,
+    "ALL"
+  >;
+  priorityLabel: string;
+  requesterName: string;
+  requestedByName: string;
+  requestedAt: string;
+};
+
+export type TicketWorkspaceApprovalInbox = {
+  visible: boolean;
+  totalItems: number;
+  records: TicketWorkspacePendingApproval[];
+};
+
 export type TicketWorkspaceData = {
   organizationName: string;
   title: string;
@@ -93,5 +115,6 @@ export type TicketWorkspaceData = {
   query: TicketWorkspaceQuery;
   records: TicketWorkspaceRecord[];
   metrics: TicketWorkspaceMetric[];
+  approvalInbox: TicketWorkspaceApprovalInbox;
   pagination: TicketWorkspacePagination;
 };
