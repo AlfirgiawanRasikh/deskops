@@ -16,6 +16,7 @@ import {
 } from "react";
 
 import { TicketApprovalPanel } from "@/features/approvals/components/ticket-approval-panel";
+import { TicketResolutionPanel } from "@/features/resolutions/components/ticket-resolution-panel";
 
 import {
   addTicketInternalNoteAction,
@@ -98,7 +99,9 @@ export function TicketDetailView({
       (!canAssignTickets &&
         !canClaimUnassignedTickets) ||
       assignmentPending ||
-      ticket.status === "Waiting approval"
+      ["Waiting approval", "Resolved", "Closed", "Canceled"].includes(
+        ticket.status,
+      )
     ) {
       return;
     }
@@ -496,6 +499,11 @@ export function TicketDetailView({
             ticketId={ticket.databaseId}
           />
 
+          <TicketResolutionPanel
+            resolution={ticket.resolution}
+            ticketId={ticket.databaseId}
+          />
+
           <section className="rounded-[6px] border border-line bg-surface">
             <div className="border-b border-line px-4 py-3">
               <h2 className="text-[12px] font-semibold text-ink">
@@ -519,8 +527,9 @@ export function TicketDetailView({
                       className="h-8 w-full rounded-[5px] border border-line bg-white px-2 text-[11px] font-medium text-ink outline-none focus:border-accent disabled:cursor-wait disabled:opacity-70"
                       disabled={
                         assignmentPending ||
-                        ticket.status ===
-                          "Waiting approval"
+                        ["Waiting approval", "Resolved", "Closed", "Canceled"].includes(
+                          ticket.status,
+                        )
                       }
                       onChange={(event) =>
                         updateAssignee(
@@ -549,8 +558,9 @@ export function TicketDetailView({
                 </div>
               ) : canClaimUnassignedTickets &&
                 !ticket.assignee &&
-                ticket.status !==
-                  "Waiting approval" ? (
+                !["Waiting approval", "Resolved", "Closed", "Canceled"].includes(
+                  ticket.status,
+                ) ? (
                 <div className="grid grid-cols-[76px_minmax(0,1fr)] gap-2">
                   <dt className="self-center text-muted">
                     Assignee

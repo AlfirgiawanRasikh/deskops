@@ -12,6 +12,8 @@ import {
   TicketCheck,
   Trash2,
   UserRoundCheck,
+  Wrench,
+  RotateCcw,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -39,6 +41,10 @@ const notificationIconByKind = {
     ClipboardCheck,
   TICKET_APPROVAL_DECIDED:
     ClipboardCheck,
+  TICKET_RESOLVED: Wrench,
+  TICKET_RESOLUTION_CONFIRMED:
+    TicketCheck,
+  TICKET_REOPENED: RotateCcw,
 } satisfies Record<
   NotificationKind,
   typeof Bell

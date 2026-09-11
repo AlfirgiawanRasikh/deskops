@@ -59,7 +59,6 @@ const statusToDatabaseStatus = {
   "In progress": "IN_PROGRESS",
   "Waiting requester": "WAITING_REQUESTER",
   Scheduled: "SCHEDULED",
-  Resolved: "RESOLVED",
 } as const;
 
 type ActorContext = {
@@ -816,6 +815,16 @@ export async function updateTicketStatusAction(
           }
 
           if (
+            ["RESOLVED", "CLOSED", "CANCELED"].includes(
+              ticket.status,
+            )
+          ) {
+            throw new MutationError(
+              "Use the resolution workflow to confirm or reopen a completed ticket.",
+            );
+          }
+
+          if (
             input.status ===
             "Unassigned"
           ) {
@@ -903,11 +912,6 @@ export async function updateTicketStatusAction(
             };
           }
 
-          const resolvedAt =
-            nextStatus === "RESOLVED"
-              ? new Date()
-              : null;
-
           await transaction.ticket.update({
             where: {
               id: ticket.id,
@@ -915,7 +919,7 @@ export async function updateTicketStatusAction(
             data: {
               status:
                 nextStatus,
-              resolvedAt,
+              resolvedAt: null,
               closedAt: null,
             },
           });

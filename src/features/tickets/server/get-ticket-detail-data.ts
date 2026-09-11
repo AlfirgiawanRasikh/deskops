@@ -13,6 +13,14 @@ import {
 } from "@/features/approvals/policies/request-approval-authorization";
 import type { TicketDetailData } from "@/features/tickets/types/ticket-detail";
 import {
+  canConfirmTicketResolution,
+  canResolveTicket,
+} from "@/features/resolutions/policies/ticket-resolution-authorization";
+import {
+  canReopenTicketResolution,
+  getTicketReopenDeadline,
+} from "@/features/resolutions/utils/ticket-resolution-workflow";
+import {
   getTicketSlaSnapshot,
   getTicketSlaTone,
 } from "@/features/tickets/utils/ticket-sla";
@@ -86,6 +94,15 @@ function formatEvent(event: {
           ? "approved"
           : "rejected"
       } the service request.`;
+
+    case "RESOLUTION_RECORDED":
+      return `${actor} resolved the ticket and requested confirmation.`;
+
+    case "RESOLUTION_CONFIRMED":
+      return `${actor} confirmed the resolution and closed the ticket.`;
+
+    case "TICKET_REOPENED":
+      return `${actor} reopened the ticket for further work.`;
 
     default:
       return `${actor} updated this ticket.`;
@@ -237,6 +254,29 @@ export async function getTicketDetailData(
             },
           },
         },
+        resolutions: {
+          orderBy: {
+            resolvedAt: "desc",
+          },
+          take: 10,
+          select: {
+            id: true,
+            status: true,
+            category: true,
+            summary: true,
+            resolvedAt: true,
+            confirmedAt: true,
+            reopenedAt: true,
+            reopenReason: true,
+            resolvedBy: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -281,6 +321,29 @@ export async function getTicketDetailData(
 
   const approvalEligible =
     ticket.type === "SERVICE_REQUEST";
+
+  const pendingResolution =
+    ticket.resolutions.find(
+      (resolution) =>
+        resolution.status ===
+        "PENDING_CONFIRMATION",
+    );
+
+  const canResolve =
+    !pendingResolution &&
+    !hasPendingApproval &&
+    ![
+      "WAITING_APPROVAL",
+      "RESOLVED",
+      "CLOSED",
+      "CANCELED",
+    ].includes(ticket.status) &&
+    canResolveTicket({
+      role,
+      actorId: workspace.user.id,
+      assigneeId:
+        ticket.assignee?.id ?? null,
+    });
 
   const canRequestApproval =
     approvalEligible &&
@@ -430,6 +493,7 @@ export async function getTicketDetailData(
       timeZone,
     ),
     requester: {
+      id: ticket.requester.id,
       name: ticket.requester.name,
       email: ticket.requester.email,
       department:
@@ -498,6 +562,79 @@ export async function getTicketDetailData(
               status: approval.status,
             }),
         }),
+      ),
+    },
+    resolution: {
+      canResolve,
+      history: ticket.resolutions.map(
+        (resolution) => {
+          const now = new Date();
+
+          return {
+            id: resolution.id,
+            status: resolution.status,
+            category: resolution.category,
+            categoryLabel:
+              formatEnumValue(
+                resolution.category,
+              ),
+            summary: resolution.summary,
+            resolvedAt: formatDateTime(
+              resolution.resolvedAt,
+              timeZone,
+            ),
+            resolvedBy:
+              resolution.resolvedBy,
+            confirmedAt:
+              resolution.confirmedAt
+                ? formatDateTime(
+                    resolution.confirmedAt,
+                    timeZone,
+                  )
+                : null,
+            reopenedAt:
+              resolution.reopenedAt
+                ? formatDateTime(
+                    resolution.reopenedAt,
+                    timeZone,
+                  )
+                : null,
+            reopenReason:
+              resolution.reopenReason,
+            reopenDeadline:
+              formatDateTime(
+                getTicketReopenDeadline(
+                  resolution.resolvedAt,
+                ),
+                timeZone,
+              ),
+            canConfirm:
+              canConfirmTicketResolution({
+                actorId:
+                  workspace.user.id,
+                requesterId:
+                  ticket.requester.id,
+                ticketStatus:
+                  ticket.status,
+                resolutionStatus:
+                  resolution.status,
+              }),
+            canReopen:
+              canReopenTicketResolution({
+                actorId:
+                  workspace.user.id,
+                requesterId:
+                  ticket.requester.id,
+                ticketStatus:
+                  ticket.status,
+                resolutionStatus:
+                  resolution.status,
+                resolvedAt:
+                  resolution.resolvedAt,
+                now,
+              }),
+          };
+        },
       ),
     },
     sla: {

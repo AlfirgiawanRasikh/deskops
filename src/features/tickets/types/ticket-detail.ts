@@ -1,5 +1,6 @@
 import type { TicketSlaTone } from "@/features/tickets/utils/ticket-sla";
 import type { TicketApprovalData } from "@/features/approvals/types/request-approval";
+import type { TicketResolutionData } from "@/features/resolutions/types/ticket-resolution";
 
 export type TicketCommentVisibility =
   | "PUBLIC"
@@ -48,6 +49,7 @@ export type TicketDetailData = {
   createdAt: string;
   updatedAt: string;
   requester: {
+    id: string;
     name: string;
     email: string;
     department: string;
@@ -59,6 +61,7 @@ export type TicketDetailData = {
   } | null;
   assigneeOptions: TicketDetailAssigneeOption[];
   approval: TicketApprovalData;
+  resolution: TicketResolutionData;
   sla: {
     status: string;
     phase: string;

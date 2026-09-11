@@ -65,12 +65,32 @@ enum NotificationType {
   TICKET_INTERNAL_NOTE_ADDED
   TICKET_APPROVAL_REQUESTED
   TICKET_APPROVAL_DECIDED
+  TICKET_RESOLVED
+  TICKET_RESOLUTION_CONFIRMED
+  TICKET_REOPENED
 }
 
 enum TicketApprovalStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum TicketResolutionStatus {
+  PENDING_CONFIRMATION
+  CONFIRMED
+  REOPENED
+}
+
+enum TicketResolutionCategory {
+  SOFTWARE_CONFIGURATION
+  ACCOUNT_ACCESS
+  HARDWARE_REPAIR
+  NETWORK_FIX
+  SECURITY_REMEDIATION
+  USER_GUIDANCE
+  NO_FAULT_FOUND
+  OTHER
 }
 
 enum KnowledgeArticleStatus {
@@ -132,6 +152,7 @@ model User {
   knowledgeArticleEvents    KnowledgeArticleEvent[] @relation("KnowledgeArticleEventActor")
   requestedTicketApprovals  TicketApproval[]        @relation("TicketApprovalRequester")
   assignedTicketApprovals   TicketApproval[]        @relation("TicketApprovalApprover")
+  ticketResolutions         TicketResolution[]      @relation("TicketResolutionAuthor")
 }
 
 model ServiceLevelPolicy {
@@ -297,6 +318,7 @@ model Ticket {
 
   notifications Notification[]
   approvals     TicketApproval[]
+  resolutions   TicketResolution[]
 
   @@unique([organizationId, number])
   @@index([organizationId, status, priority])
@@ -305,6 +327,25 @@ model Ticket {
   @@index([assetId])
   @@index([createdAt])
   @@index([organizationId, firstRespondedAt])
+}
+
+model TicketResolution {
+  id           String                   @id @default(cuid())
+  ticketId     String
+  resolvedById String
+  status       TicketResolutionStatus   @default(PENDING_CONFIRMATION)
+  category     TicketResolutionCategory
+  summary      String                   @db.Text
+  resolvedAt   DateTime                 @default(now()) @db.Timestamptz(3)
+  confirmedAt  DateTime?                @db.Timestamptz(3)
+  reopenedAt   DateTime?                @db.Timestamptz(3)
+  reopenReason String?                  @db.VarChar(1000)
+
+  ticket     Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  resolvedBy User   @relation("TicketResolutionAuthor", fields: [resolvedById], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, resolvedAt])
+  @@index([resolvedById])
 }
 
 model TicketApproval {
