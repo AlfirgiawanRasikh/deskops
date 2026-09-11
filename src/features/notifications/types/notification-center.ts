@@ -5,7 +5,10 @@ export type NotificationKind =
   | "TICKET_REPLY_ADDED"
   | "TICKET_INTERNAL_NOTE_ADDED"
   | "TICKET_APPROVAL_REQUESTED"
-  | "TICKET_APPROVAL_DECIDED";
+  | "TICKET_APPROVAL_DECIDED"
+  | "TICKET_RESOLVED"
+  | "TICKET_RESOLUTION_CONFIRMED"
+  | "TICKET_REOPENED";
 
 export type NotificationCenterItem = {
   id: string;

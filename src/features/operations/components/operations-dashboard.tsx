@@ -42,7 +42,7 @@ type QueueView = "mine" | "all" | "unassigned";
 type PriorityFilter = "All" | TicketPriority;
 type MutableTicketStatus = Exclude<
   TicketStatus,
-  "Waiting approval"
+  "Waiting approval" | "Resolved"
 >;
 
 type MutationNotice = {
@@ -95,7 +95,6 @@ const statusOptions: MutableTicketStatus[] = [
   "In progress",
   "Waiting requester",
   "Scheduled",
-  "Resolved",
 ];
 
 function MetricStrip({
@@ -503,7 +502,8 @@ function ContextRail({
                 disabled={
                   statusPending ||
                   ticket.status ===
-                    "Waiting approval"
+                    "Waiting approval" ||
+                  ticket.status === "Resolved"
                 }
                 onChange={(event) =>
                   onStatusChange(
@@ -513,13 +513,13 @@ function ContextRail({
                 }
                 value={ticket.status}
               >
-                {ticket.status ===
-                "Waiting approval" ? (
+                {ticket.status === "Waiting approval" ||
+                ticket.status === "Resolved" ? (
                   <option
                     disabled
-                    value="Waiting approval"
+                    value={ticket.status}
                   >
-                    Waiting approval
+                    {ticket.status}
                   </option>
                 ) : null}
                 {statusOptions.map((status) => (

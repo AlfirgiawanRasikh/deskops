@@ -285,6 +285,30 @@ function formatTicketAction(
       };
     }
 
+    case "RESOLUTION_RECORDED":
+      return {
+        action: "Resolution recorded",
+        summary: `Ticket status: ${formatEnum(
+          event.fromValue,
+        )} → Resolved. Category: ${formatEnum(
+          getString(event.metadata, "category"),
+        )}.`,
+      };
+
+    case "RESOLUTION_CONFIRMED":
+      return {
+        action: "Resolution confirmed",
+        summary:
+          "Requester confirmed the resolution. Ticket status: Resolved → Closed.",
+      };
+
+    case "TICKET_REOPENED":
+      return {
+        action: "Ticket reopened",
+        summary:
+          "Requester reopened the ticket. Ticket status: Resolved → In progress. The reopen reason remains in the ticket workspace.",
+      };
+
     case "COMMENT_ADDED": {
       const isInternal =
         event.toValue === "INTERNAL";
